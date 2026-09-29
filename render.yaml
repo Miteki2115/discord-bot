@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: bot-discord
+    env: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci --prefer-offline --no-audit --no-fund
+    startCommand: node index.cjs
+    autoDeploy: true
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: PREFIX
+        sync: false
