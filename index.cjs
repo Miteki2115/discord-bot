@@ -5920,6 +5920,23 @@ const commands = [
     )
     .toJSON(),
   new SlashCommandBuilder()
+    .setName("test-pingi")
+    .setDescription("Przetestuj logikę oznaczania po /ticket-zakoncz (czy-legit, opinie-klientow, legit-checki)")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .addUserOption((o) =>
+      o
+        .setName("uzytkownik")
+        .setDescription("Użytkownik do przetestowania (domyślnie ty)")
+        .setRequired(false),
+    )
+    .addBooleanOption((o) =>
+      o
+        .setName("wyslij")
+        .setDescription("Czy rzeczywiście wysłać testowe ghost-pingi na kanały (usunięcie po 4s)")
+        .setRequired(false),
+    )
+    .toJSON(),
+  new SlashCommandBuilder()
     .setName("panel-zaproszen")
     .setDescription("Wyślij panel sprawdzania zaproszeń na wyznaczonym kanale")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
@@ -10068,6 +10085,9 @@ async function handleSlashCommand(interaction) {
     case "test-rozliczenia-ping":
       await handleTestRozliczeniaPingCommand(interaction);
       break;
+    case "test-pingi":
+      await handleTestPingiCommand(interaction);
+      break;
     case "panel-zaproszen":
       await handlePanelZaproszenCommand(interaction);
       break;
@@ -10589,6 +10609,81 @@ async function handleTestRozliczeniaPingCommand(interaction) {
       content: "> `❌` × Błąd podczas testowania pinga.",
     });
   }
+}
+
+// Handler dla komendy /test-pingi
+async function handleTestPingiCommand(interaction) {
+  if (!isAdminOrSeller(interaction.member)) {
+    await interaction.reply({
+      content: "> `‼️` × Brak wymaganych uprawnień.",
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+  const targetUser = interaction.options.getUser("uzytkownik") || interaction.user;
+  const shouldSend = interaction.options.getBoolean("wyslij") || false;
+  const targetId = targetUser.id;
+
+  const hasReactedCzyLegit = await hasUserReactedInCzyLegit(targetId, interaction.guild);
+  const hasGivenOpinion = await hasUserPublishedOpinion(targetId, interaction.guild);
+
+  const CZY_LEGIT_CH_ID = "1350446732365926494";
+  const OPINIE_CH_ID = "1449783959306375198";
+  const LEGIT_REP_CH_ID = "1449840030947217529";
+
+  const descriptionLines = [
+    `### 🧪 Test logiki oznaczeń dla <@${targetId}> (\`${targetUser.tag || targetUser.username}\`)\n`,
+    `> **🧐 × czy-legit** (<#${CZY_LEGIT_CH_ID}>):`,
+    hasReactedCzyLegit
+      ? `> \`✅\` **Reakcja wykryta** ➔ Ping zostanie **POMINIĘTY** (brak oznaczenia)`
+      : `> \`❌\` **Brak reakcji** ➔ Użytkownik **ZOSTANIE OZNACZONY**`,
+    ``,
+    `> **⭐ × opinie-klientow** (<#${OPINIE_CH_ID}>):`,
+    hasGivenOpinion
+      ? `> \`✅\` **Opinia wykryta** ➔ Ping zostanie **POMINIĘTY** (brak oznaczenia)`
+      : `> \`❌\` **Brak opinii** ➔ Użytkownik **ZOSTANIE OZNACZONY**`,
+    ``,
+    `> **📅 × legit-checki** (<#${LEGIT_REP_CH_ID}>):`,
+    `> \`📢\` **Kanał zakupowy** ➔ Zawsze oznaczany (do wystawienia +rep)`,
+  ];
+
+  let sendResult = "";
+  if (shouldSend) {
+    const channelsToPing = [LEGIT_REP_CH_ID];
+    if (!hasReactedCzyLegit) channelsToPing.push(CZY_LEGIT_CH_ID);
+    if (!hasGivenOpinion) channelsToPing.push(OPINIE_CH_ID);
+
+    const sentChannels = [];
+    for (const chId of channelsToPing) {
+      const ch = await interaction.guild.channels.fetch(chId).catch(() => null);
+      if (ch && ch.isTextBased()) {
+        const pingMessage = await ch.send({
+          content: `<@${targetId}>`,
+          allowedMentions: { users: [targetId] },
+        }).catch(() => null);
+
+        if (pingMessage) {
+          sentChannels.push(`<#${chId}>`);
+          setTimeout(() => {
+            pingMessage.delete().catch(() => null);
+          }, LEGIT_REP_PING_DELETE_DELAY_MS);
+        }
+      }
+    }
+    sendResult = `\n\n> \`📨\` **Wysłano testowe pingi (usunięcie po 4s) na:** ${sentChannels.join(", ") || "brak"}`;
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor(COLOR_BLUE)
+    .setTitle("Wynik weryfikacji oznaczeń (/ticket-zakoncz)")
+    .setDescription(descriptionLines.join("\n") + sendResult)
+    .setFooter({ text: "Test logiki /ticket-zakoncz • New Shop" })
+    .setTimestamp();
+
+  await interaction.editReply({ embeds: [embed] });
 }
 
 // Handler dla komendy /rozliczeniezakoncz
