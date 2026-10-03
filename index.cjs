@@ -249,12 +249,37 @@ const CZY_LEGIT_MESSAGE_MARKER = "LEGIT SHOP";
 const CZY_LEGIT_REACTION = "✅";
 let czyLegitTrackedMessageId = null;
 let czyLegitTrackedChannelId = null;
+const czyLegitReactionUsers = new Set();
 
 function getCzyLegitReactionCount(message) {
   const reaction = message?.reactions?.cache?.find(
     (entry) => entry.emoji?.name === CZY_LEGIT_REACTION,
   );
   return Math.max(0, Number(reaction?.count) || 0);
+}
+
+async function syncCzyLegitReactionUsers(message) {
+  if (!message) return;
+  try {
+    const reaction = message.reactions?.cache?.find(
+      (entry) => entry.emoji?.name === CZY_LEGIT_REACTION,
+    );
+    if (!reaction) return;
+    czyLegitReactionUsers.clear();
+    let lastId;
+    while (true) {
+      const users = await reaction.users.fetch({ limit: 100, after: lastId }).catch(() => null);
+      if (!users || users.size === 0) break;
+      for (const [uid] of users) {
+        czyLegitReactionUsers.add(uid);
+      }
+      lastId = users.lastKey();
+      if (users.size < 100) break;
+    }
+    console.log(`[czy-legit] Zsynchronizowano ${czyLegitReactionUsers.size} użytkowników z reakcją ${CZY_LEGIT_REACTION}`);
+  } catch (error) {
+    console.error("[czy-legit] Błąd synchronizacji użytkowników reakcji:", error);
+  }
 }
 
 async function renameCzyLegitChannel(channel, count) {
@@ -282,6 +307,7 @@ async function syncCzyLegitMessage(message) {
   czyLegitTrackedMessageId = message.id;
   czyLegitTrackedChannelId = channel.id;
   await renameCzyLegitChannel(channel, getCzyLegitReactionCount(message));
+  await syncCzyLegitReactionUsers(message);
   return true;
 }
 
@@ -317,7 +343,7 @@ async function initializeCzyLegitCounter() {
   console.log(`[czy-legit] Obserwuję wiadomość ${target.id} (${getCzyLegitReactionCount(target)} reakcji).`);
 }
 
-async function handleCzyLegitReactionChange(reaction) {
+async function handleCzyLegitReactionChange(reaction, user) {
   try {
     if (reaction.partial) reaction = await reaction.fetch();
     if (reaction.emoji?.name !== CZY_LEGIT_REACTION) return;
@@ -333,12 +359,59 @@ async function handleCzyLegitReactionChange(reaction) {
   }
 }
 
-client.on(Events.MessageReactionAdd, handleCzyLegitReactionChange);
-client.on(Events.MessageReactionRemove, handleCzyLegitReactionChange);
+async function hasUserReactedInCzyLegit(userId, guild) {
+  if (!userId) return false;
+  if (czyLegitReactionUsers.has(userId)) return true;
+
+  if (!czyLegitTrackedMessageId || !czyLegitTrackedChannelId) {
+    await initializeCzyLegitCounter().catch(() => null);
+  }
+  if (czyLegitReactionUsers.has(userId)) return true;
+
+  try {
+    const chId = czyLegitTrackedChannelId || "1350446732365926494";
+    const ch = guild?.channels?.cache?.get(chId) || (guild?.channels ? await guild.channels.fetch(chId).catch(() => null) : null);
+    if (ch && czyLegitTrackedMessageId) {
+      const msg = await ch.messages.fetch(czyLegitTrackedMessageId).catch(() => null);
+      if (msg) {
+        const reaction = msg.reactions?.cache?.find((entry) => entry.emoji?.name === CZY_LEGIT_REACTION);
+        if (reaction) {
+          const fetchedUsers = await reaction.users.fetch({ limit: 100 }).catch(() => null);
+          if (fetchedUsers?.has(userId)) {
+            czyLegitReactionUsers.add(userId);
+            return true;
+          }
+        }
+      }
+    }
+  } catch (e) { }
+
+  return false;
+}
+
+client.on(Events.MessageReactionAdd, async (reaction, user) => {
+  try {
+    if (reaction.emoji?.name === CZY_LEGIT_REACTION && (!czyLegitTrackedMessageId || reaction.message?.id === czyLegitTrackedMessageId) && user?.id) {
+      czyLegitReactionUsers.add(user.id);
+    }
+  } catch (e) { }
+  await handleCzyLegitReactionChange(reaction, user);
+});
+
+client.on(Events.MessageReactionRemove, async (reaction, user) => {
+  try {
+    if (reaction.emoji?.name === CZY_LEGIT_REACTION && (!czyLegitTrackedMessageId || reaction.message?.id === czyLegitTrackedMessageId) && user?.id) {
+      czyLegitReactionUsers.delete(user.id);
+    }
+  } catch (e) { }
+  await handleCzyLegitReactionChange(reaction, user);
+});
+
 client.on(Events.MessageReactionRemoveAll, async (message) => {
   try {
     if (message.partial) message = await message.fetch();
     if (message.id !== czyLegitTrackedMessageId) return;
+    czyLegitReactionUsers.clear();
     await renameCzyLegitChannel(message.channel, 0);
   } catch (error) {
     console.error("[czy-legit] Błąd po usunięciu wszystkich reakcji:", error);
@@ -1335,6 +1408,7 @@ const OPINION_RATING_OPTIONS = Array.from({ length: 5 }, (_, index) => {
 
 const opinionMessageIdsByChannel = new Map();
 const opinionCounterSyncInProgress = new Set();
+const opinionAuthorUserIds = new Set();
 
 function isPublishedOpinionMessage(message) {
   return Boolean(
@@ -1376,7 +1450,14 @@ async function countExistingOpinions(channel) {
       if (!batch.size) break;
 
       for (const message of batch.values()) {
-        if (isPublishedOpinionMessage(message)) opinionIds.add(message.id);
+        if (isPublishedOpinionMessage(message)) {
+          opinionIds.add(message.id);
+          const desc = String(message.embeds?.[0]?.description || "");
+          const authorMatch = desc.match(/<@!?(\d+)>/);
+          if (authorMatch?.[1]) {
+            opinionAuthorUserIds.add(authorMatch[1]);
+          }
+        }
       }
 
       before = batch.last()?.id;
@@ -1385,7 +1466,7 @@ async function countExistingOpinions(channel) {
 
     opinionMessageIdsByChannel.set(channel.id, opinionIds);
     await renameOpinionChannel(channel, opinionIds.size);
-    console.log(`[opinie-counter] Policzone istniejące opinie: ${opinionIds.size}`);
+    console.log(`[opinie-counter] Policzone istniejące opinie: ${opinionIds.size}, unikalnych autorów: ${opinionAuthorUserIds.size}`);
   } catch (error) {
     console.error("[opinie-counter] Nie udało się policzyć istniejących opinii:", error);
   } finally {
@@ -1402,6 +1483,12 @@ async function initializeOpinionCounters() {
 
 async function handleNewOpinionMessage(message) {
   if (!isOpinionChannel(message?.channel) || !isPublishedOpinionMessage(message)) return;
+
+  const desc = String(message.embeds?.[0]?.description || "");
+  const authorMatch = desc.match(/<@!?(\d+)>/);
+  if (authorMatch?.[1]) {
+    opinionAuthorUserIds.add(authorMatch[1]);
+  }
 
   let opinionIds = opinionMessageIdsByChannel.get(message.channel.id);
   if (!opinionIds) {
@@ -1421,6 +1508,18 @@ async function handleDeletedOpinionMessage(message) {
 
   const channel = message.channel || await client.channels.fetch(channelId).catch(() => null);
   await renameOpinionChannel(channel, opinionIds.size);
+}
+
+async function hasUserPublishedOpinion(userId, guild) {
+  if (!userId) return false;
+  if (opinionAuthorUserIds.has(userId)) return true;
+
+  const opChannel = guild?.channels?.cache?.find((c) => isOpinionChannel(c)) ||
+    (guild?.channels ? await guild.channels.fetch("1449783959306375198").catch(() => null) : null);
+  if (opChannel && opinionAuthorUserIds.size === 0) {
+    await countExistingOpinions(opChannel).catch(() => null);
+  }
+  return opinionAuthorUserIds.has(userId);
 }
 
 // FREE KASA cooldown (12h) and allowed channel
@@ -17761,11 +17860,21 @@ async function handleTicketZakonczCommand(interaction) {
 
   // Oznacz właściciela ticketu na kanałach do opinii/repa i usuń ping po chwili
   try {
-    const channelsToPing = [
-      legitRepChannelId,
-      "1350446732365926494", // legit-react
-      "1449783959306375198"  // opinie klientów
-    ];
+    const channelsToPing = [legitRepChannelId];
+
+    const hasReactedCzyLegit = await hasUserReactedInCzyLegit(ticketOwnerId, interaction.guild);
+    if (!hasReactedCzyLegit) {
+      channelsToPing.push("1350446732365926494"); // czy-legit
+    } else {
+      console.log(`[ticket-zakoncz] Pomijam ping dla ${ticketOwnerId} na czy-legit (użytkownik ma już reakcję).`);
+    }
+
+    const hasGivenOpinion = await hasUserPublishedOpinion(ticketOwnerId, interaction.guild);
+    if (!hasGivenOpinion) {
+      channelsToPing.push("1449783959306375198"); // opinie klientów
+    } else {
+      console.log(`[ticket-zakoncz] Pomijam ping dla ${ticketOwnerId} na opinie-klientow (użytkownik wystawił już opinię).`);
+    }
 
     for (const chId of channelsToPing) {
       const ch = await interaction.guild.channels.fetch(chId).catch(() => null);
@@ -21526,6 +21635,7 @@ async function handleModalSubmit(interaction) {
       const sent = await targetChannel.send(buildOpinionInstructionPayload());
       lastOpinionInstruction.set(allowedChannelId, sent.id);
 
+      opinionAuthorUserIds.add(interaction.user.id);
       await interaction.reply({
         content: "> `✅` × **Twoja opinia** została opublikowana.",
         flags: [MessageFlags.Ephemeral],
@@ -24520,6 +24630,7 @@ async function handleOpinionCommand(interaction) {
       // ignore (maybe no perms)
     }
 
+    opinionAuthorUserIds.add(interaction.user.id);
     await interaction.reply({
       content: "> `✅` × **Twoja opinia** została opublikowana.",
       flags: [MessageFlags.Ephemeral],
