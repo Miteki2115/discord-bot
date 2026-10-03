@@ -25374,7 +25374,9 @@ client.on(Events.GuildMemberAdd, async (member) => {
         } else if (selfInviteDetected) {
           message = `> \`✉️\` × <@${member.id}> dołączył swoim własnym linkiem. Zaproszenie nie zostało zaliczone.`;
         } else if (invalidInviterDetected || !hasValidInviterId) {
-          message = `> \`✉️\` × <@${member.id}> dołączył, ale nie udało się poprawnie wykryć użytego linku zaproszenia.`;
+          message = isFakeAccount
+            ? `> \`✉️\` × <@${member.id}> dołączył używając linku **newshop**. (konto ma mniej niż 2 mies.)`
+            : `> \`✉️\` × <@${member.id}> dołączył używając linku **newshop**.`;
         } else if (inviterId === ownerId && !countOwnerInvites) {
           // Zaproszenie przez właściciela - nie liczymy zaproszeń
           message = `> \`✉️\` × <@${inviterId}> zaprosił <@${member.id}> (został zaproszony przez właściciela)`;
@@ -25386,7 +25388,9 @@ client.on(Events.GuildMemberAdd, async (member) => {
         }
 
         if (!message) {
-          message = `> \`✉️\` × <@${member.id}> dołączył, ale nie udało się wykryć użytego linku zaproszenia.`;
+          message = isFakeAccount
+            ? `> \`✉️\` × <@${member.id}> dołączył używając linku **newshop**. (konto ma mniej niż 2 mies.)`
+            : `> \`✉️\` × <@${member.id}> dołączył używając linku **newshop**.`;
         }
         await zapChannel.send(message);
       } catch (e) { }
