@@ -3076,9 +3076,14 @@ function queueInviteRewardDeliveryRetryBurst(guildId, userId) {
   });
 }
 
+function inviteCounterValue(value) {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
+}
+
 function getInviteDisplayCount(guildId, userId) {
-  const valid = inviteCounts.get(guildId)?.get(userId) || 0;
-  const bonus = inviteBonusInvites.get(guildId)?.get(userId) || 0;
+  const valid = inviteCounterValue(inviteCounts.get(guildId)?.get(userId));
+  const bonus = inviteCounterValue(inviteBonusInvites.get(guildId)?.get(userId));
   return valid + bonus;
 }
 
@@ -5061,6 +5066,47 @@ const SENDABLE_PANELS = [
   { name: "Regulamin", value: "regulamin", send: sendSavedRegulationPanel },
 ];
 
+const INVITE_COUNTER_CHOICES = [
+  { name: "Dodatkowe — ręcznie przyznane zaproszenia", value: "dodatkowe" },
+  { name: "Prawdziwe — policzone zaproszenia", value: "prawdziwe" },
+  { name: "Opuszczone — osoby, które wyszły", value: "opuszczone" },
+  { name: "Nieprawidłowe — konta młodsze niż 2 miesiące", value: "mniej2mies" },
+];
+
+function buildInviteStatsCommand() {
+  const command = new SlashCommandBuilder()
+    .setName("zaproszeniastats")
+    .setDescription("Liczniki zaproszeń: podgląd i zmiany (tylko właściciel serwera)")
+    .setDMPermission(false)
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addSubcommand((sub) => sub.setName("pokaz").setDescription("Pokaż wszystkie liczniki i sumę do nagród")
+      .addUserOption((o) => o.setName("osoba").setDescription("Czyje statystyki pokazać").setRequired(true)));
+  for (const [action, description] of [
+    ["dodaj", "Dodaj podaną liczbę do wybranego licznika"],
+    ["odejmij", "Odejmij podaną liczbę z wybranego licznika"],
+    ["ustaw", "Zastąp wybrany licznik podaną wartością"],
+    ["wyzeruj", "Wyzeruj tylko wybrany licznik"],
+  ]) {
+    command.addSubcommand((sub) => {
+      sub.setName(action).setDescription(description)
+        .addUserOption((o) => o.setName("osoba").setDescription("Użytkownik, którego licznik zmieniasz").setRequired(true))
+        .addStringOption((o) => o.setName("licznik").setDescription("Który licznik zmienić").setRequired(true).addChoices(...INVITE_COUNTER_CHOICES));
+      if (action !== "wyzeruj") sub.addIntegerOption((o) => o.setName("liczba")
+        .setDescription(action === "ustaw" ? "Nowa wartość licznika (0 oznacza zero)" : "O ile zmienić licznik")
+        .setRequired(true).setMinValue(action === "ustaw" ? 0 : 1).setMaxValue(1000000));
+      return sub;
+    });
+  }
+  command.addSubcommand((sub) => sub.setName("odblokuj-nagrody")
+    .setDescription("Zezwól na ponowny odbiór nagród 5 i 10; usuwa istniejące kody nagród")
+    .addUserOption((o) => o.setName("osoba").setDescription("Komu zresetować odebrane nagrody").setRequired(true)));
+  command.addSubcommand((sub) => sub.setName("nagroda-kwota").setDescription("Zmień wartość nagrody za określony próg")
+    .addIntegerOption((o) => o.setName("prog").setDescription("Próg zaproszeń").setRequired(true)
+      .addChoices({ name: "5 zaproszeń", value: 5 }, { name: "10 zaproszeń", value: 10 }))
+    .addIntegerOption((o) => o.setName("kwota").setDescription("Nowa kwota nagrody w $ (np. 130000)").setRequired(true).setMinValue(1)));
+  return command.toJSON();
+}
+
 const commands = [
   new SlashCommandBuilder()
     .setName("panel-wyslij")
@@ -5383,86 +5429,7 @@ const commands = [
     .setName("help")
     .setDescription("Spis podstawowych komend bota")
     .toJSON(),
-  new SlashCommandBuilder()
-    .setName("zaproszeniastats")
-    .setDescription("Edytuj statystyki zaproszeń")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
-    .addSubcommand((sub) =>
-      sub
-        .setName("edytuj")
-        .setDescription("Edytuj liczniki zaproszeń")
-        .addStringOption((o) =>
-          o
-            .setName("kategoria")
-            .setDescription(
-              "Wybierz kategorię: prawdziwe / opuszczone / mniej4mies / dodatkowe",
-            )
-            .setRequired(true)
-            .addChoices(
-              { name: "prawdziwe", value: "prawdziwe" },
-              { name: "opuszczone", value: "opuszczone" },
-              { name: "mniej4mies", value: "mniej4mies" },
-              { name: "dodatkowe", value: "dodatkowe" },
-            ),
-        )
-        .addStringOption((o) =>
-          o
-            .setName("akcja")
-            .setDescription("dodaj / odejmij / ustaw / wyczysc")
-            .setRequired(true)
-            .addChoices(
-              { name: "dodaj", value: "dodaj" },
-              { name: "odejmij", value: "odejmij" },
-              { name: "ustaw", value: "ustaw" },
-              { name: "wyczysc", value: "wyczysc" },
-            ),
-        )
-        .addIntegerOption((o) =>
-          o
-            .setName("liczba")
-            .setDescription("Ilość (opcjonalnie)")
-            .setRequired(false),
-        )
-        .addUserOption((o) =>
-          o
-            .setName("komu")
-            .setDescription("Dla kogo (opcjonalnie)")
-            .setRequired(false),
-        ),
-    )
-    .addSubcommand((sub) =>
-      sub
-        .setName("usunblokade")
-        .setDescription("Resetuj blokadę nagród za zaproszenia dla użytkownika")
-        .addUserOption((o) =>
-          o
-            .setName("kto")
-            .setDescription("Komu usunąć blokadę nagród")
-            .setRequired(true),
-        ),
-    )
-    .addSubcommand((sub) =>
-      sub
-        .setName("nagroda-kwota")
-        .setDescription("Zmień kwotę nagrody za zaproszenia (np. z 90k$ na 130k$)")
-        .addIntegerOption((o) =>
-          o
-            .setName("prog")
-            .setDescription("Próg zaproszeń (np. 5 lub 10)")
-            .setRequired(true)
-            .addChoices(
-              { name: "5 zaproszeń", value: 5 },
-              { name: "10 zaproszeń", value: 10 },
-            ),
-        )
-        .addIntegerOption((o) =>
-          o
-            .setName("kwota")
-            .setDescription("Nowa kwota nagrody w $ (np. 130000)")
-            .setRequired(true),
-        ),
-    )
-    .toJSON(),
+  buildInviteStatsCommand(),
   new SlashCommandBuilder()
     .setName("zamknij")
     .setDescription("Zamknij ticket")
@@ -25891,10 +25858,10 @@ async function handleSprawdzZaproszeniaCommand(interaction) {
 
   // Dane użytkownika
   const userId = interaction.user.id;
-  const validInvites = gMap.get(userId) || 0;
-  const left = lMap.get(userId) || 0;
-  const fake = fakeMap.get(userId) || 0;
-  const bonus = bonusMap.get(userId) || 0;
+  const validInvites = inviteCounterValue(gMap.get(userId));
+  const left = inviteCounterValue(lMap.get(userId));
+  const fake = inviteCounterValue(fakeMap.get(userId));
+  const bonus = inviteCounterValue(bonusMap.get(userId));
 
   const pendingInviteRewardDelivery = await deliverPendingInviteRewardCodes(
     interaction.guild,
@@ -25921,7 +25888,7 @@ async function handleSprawdzZaproszeniaCommand(interaction) {
       "```\n" +
       `> \`👤\` × <@${userId}> **posiadasz:** \`${displayedInvites}\` **${inviteWord}**!\n` +
       `${rewardStatusLine}\n` +
-      `> \`👥\` × **Prawdziwe osoby które dołączyły:** \`${displayedInvites}\`\n` +
+      `> \`👥\` × **Prawdziwe osoby które dołączyły:** \`${validInvites}\`\n` +
       `> \`🚶\` × **Osoby które opuściły serwer:** \`${left}\`\n` +
       `> \`⚠️\` × **Niespełniające kryteriów (< konto 2 mies.):** \`${fake}\`\n` +
       `> \`🎁\` × **Dodatkowe zaproszenia:** \`${bonus}\``;
@@ -25960,8 +25927,13 @@ async function handleSprawdzZaproszeniaCommand(interaction) {
 // ---------------------------------------------------
 // Nowa komenda: /zaproszeniastats
 async function handleZaprosieniaStatsCommand(interaction) {
+  const respond = (payload) => {
+    if (!interaction.deferred && !interaction.replied) return interaction.reply(payload);
+    const { flags, ...editPayload } = payload;
+    return interaction.editReply(editPayload);
+  };
   if (!interaction.guild) {
-    await interaction.reply({
+    await respond({
       content: "> `❌` × **Ta komenda** działa tylko na **serwerze**.",
       flags: [MessageFlags.Ephemeral],
     });
@@ -25970,13 +25942,14 @@ async function handleZaprosieniaStatsCommand(interaction) {
 
   // Sprawdź czy właściciel
   if (interaction.user.id !== interaction.guild.ownerId) {
-    await interaction.reply({
+    await respond({
       content: "> `❗` × Brak wymaganych uprawnień.",
       flags: [MessageFlags.Ephemeral],
     });
     return;
   }
 
+  if (!interaction.deferred && !interaction.replied) await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
   const guildId = interaction.guild.id;
   let subcommand = null;
 
@@ -25992,7 +25965,7 @@ async function handleZaprosieniaStatsCommand(interaction) {
 
     const milestone = INVITE_REWARD_MILESTONES.find(m => m.threshold === prog);
     if (!milestone) {
-      await interaction.reply({
+      await respond({
         content: `> \`❌\` × Nie znaleziono progu zaproszeń: \`${prog}\`.`,
         flags: [MessageFlags.Ephemeral],
       });
@@ -26006,7 +25979,7 @@ async function handleZaprosieniaStatsCommand(interaction) {
     syncInviteRewardThresholds();
     scheduleSavePersistentState(true);
 
-    await interaction.reply({
+    await respond({
       content: `> \`✅\` × Pomyślnie zmieniono kwotę nagrody za próg **${prog}** zaproszeń:\n` +
                `> \`💵\` × Stara kwota: **${formatRewardCashAmount(oldAmount)}**\n` +
                `> \`💰\` × Nowa kwota: **${formatRewardCashAmount(kwota)}** (wyświetlana jako \`${milestone.label}\`)`,
@@ -26015,8 +25988,8 @@ async function handleZaprosieniaStatsCommand(interaction) {
     return;
   }
 
-  if (subcommand === "usunblokade") {
-    const targetUser = interaction.options.getUser("kto", true);
+  if (subcommand === "usunblokade" || subcommand === "odblokuj-nagrody") {
+    const targetUser = interaction.options.getUser(subcommand === "usunblokade" ? "kto" : "osoba", true);
 
     if (!inviteRewardsGiven.has(guildId)) inviteRewardsGiven.set(guildId, new Map());
     if (!claimedInviteRewardMilestones.has(guildId)) {
@@ -26047,7 +26020,7 @@ async function handleZaprosieniaStatsCommand(interaction) {
 
     scheduleSavePersistentState(true);
 
-    await interaction.reply({
+    await respond({
       content:
         `> \`✅\` × Usunąłem blokadę nagród za zaproszenia dla <@${targetUser.id}>.\n` +
         "> `🎁` × Ta osoba może ponownie odebrać nagrody za próg `5` i `10` zaproszeń.",
@@ -26056,12 +26029,35 @@ async function handleZaprosieniaStatsCommand(interaction) {
     return;
   }
 
-  const categoryRaw = (
-    interaction.options.getString("kategoria") || ""
-  ).toLowerCase();
-  const action = (interaction.options.getString("akcja") || "").toLowerCase();
-  const number = Math.max(0, interaction.options.getInteger("liczba") || 0);
-  const user = interaction.options.getUser("komu") || interaction.user;
+  const legacyEdit = subcommand === "edytuj";
+  const user = interaction.options.getUser(legacyEdit ? "komu" : "osoba");
+  if (!user) {
+    await respond({ content: "> `❌` × Wskaż osobę, której statystyki chcesz zmienić.", flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+  if (subcommand === "pokaz") {
+    const valid = inviteCounterValue(inviteCounts.get(guildId)?.get(user.id));
+    const bonus = inviteCounterValue(inviteBonusInvites.get(guildId)?.get(user.id));
+    await respond({ content:
+      `> \`👤\` × Statystyki <@${user.id}>\n` +
+      `> \`✅\` × Prawdziwe: \`${valid}\`\n` +
+      `> \`🎁\` × Dodatkowe: \`${bonus}\`\n` +
+      `> \`⭐\` × Suma do nagród: \`${valid + bonus}\` (prawdziwe + dodatkowe)\n` +
+      `> \`🚶\` × Opuszczone: \`${inviteCounterValue(inviteLeaves.get(guildId)?.get(user.id))}\`\n` +
+      `> \`⚠️\` × Konta młodsze niż 2 miesiące: \`${inviteCounterValue(inviteFakeAccounts.get(guildId)?.get(user.id))}\``,
+      flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+  const categoryRaw = (interaction.options.getString(legacyEdit ? "kategoria" : "licznik") || "").toLowerCase();
+  const action = legacyEdit ? (interaction.options.getString("akcja") || "").toLowerCase()
+    : subcommand === "wyzeruj" ? "wyczysc" : subcommand;
+  const number = action === "wyczysc" ? 0 : interaction.options.getInteger("liczba");
+  if (!["dodaj", "odejmij", "ustaw", "wyczysc"].includes(action)
+      || !Number.isSafeInteger(number) || number < (action === "dodaj" || action === "odejmij" ? 1 : 0)
+      || number > 1000000) {
+    await respond({ content: "> `❌` × Podaj poprawną liczbę. Dodaj/odejmij: 1–1000000; ustaw: 0–1000000.", flags: [MessageFlags.Ephemeral] });
+    return;
+  }
 
   // normalize category aliases
   let category = null;
@@ -26076,6 +26072,7 @@ async function handleZaprosieniaStatsCommand(interaction) {
   else if (
     [
       "mniej4mies",
+      "mniej2mies",
       "mniejniż4mies",
       "mniej_niz_4mies",
       "mniej",
@@ -26087,8 +26084,8 @@ async function handleZaprosieniaStatsCommand(interaction) {
     category = "dodatkowe";
 
   if (!category) {
-    await interaction.reply({
-      content: "> ❌ × **Nieznana** kategoria. Wybierz: `prawdziwe`, `opuszczone`, `mniej4mies`, `dodatkowe`.",
+    await respond({
+      content: "> ❌ × **Nieznana** kategoria. Wybierz: `prawdziwe`, `opuszczone`, `mniej2mies`, `dodatkowe`.",
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -26118,7 +26115,7 @@ async function handleZaprosieniaStatsCommand(interaction) {
       break;
     case "mniej4mies":
       targetMap = inviteFakeAccounts.get(guildId);
-      prettyName = "Niespełniające kryteriów (< konto 4 mies.)";
+      prettyName = "Niespełniające kryteriów (konto młodsze niż 2 miesiące)";
       break;
     case "dodatkowe":
       targetMap = inviteBonusInvites.get(guildId);
@@ -26130,7 +26127,7 @@ async function handleZaprosieniaStatsCommand(interaction) {
   }
 
   const previousDisplayedInvites = getInviteDisplayCount(guildId, user.id);
-  const prev = targetMap.get(user.id) || 0;
+  const prev = inviteCounterValue(targetMap.get(user.id));
   let newVal = prev;
 
   if (action === "dodaj") {
@@ -26142,7 +26139,7 @@ async function handleZaprosieniaStatsCommand(interaction) {
   } else if (action === "wyczysc" || action === "czysc" || action === "reset") {
     newVal = 0;
   } else {
-    await interaction.reply({
+    await respond({
       content:
         "❌ Nieznana akcja. Wybierz: `dodaj`, `odejmij`, `ustaw`, `wyczysc`.",
       flags: [MessageFlags.Ephemeral],
@@ -26155,7 +26152,8 @@ async function handleZaprosieniaStatsCommand(interaction) {
 
   // finally set the (possibly adjusted) value
   targetMap.set(user.id, newVal);
-  scheduleSavePersistentState(true);
+  const statsSaved = await saveStateToSupabase(buildPersistentStateData());
+  if (!statsSaved) scheduleSavePersistentState(true);
 
   const newDisplayedInvites = getInviteDisplayCount(guildId, user.id);
   const crossedInviteRewardThresholdByEdit = INVITE_REWARD_MILESTONES.some(
@@ -26188,9 +26186,11 @@ async function handleZaprosieniaStatsCommand(interaction) {
     }
   }
 
-  await interaction.reply({
+  await respond({
     content:
-      `✅ Zaktualizowano **${prettyName}** dla <@${user.id}>: \`${prev}\` → \`${newVal}\`.` +
+      `✅ Zaktualizowano **${prettyName}** dla <@${user.id}>: \`${prev}\` → \`${newVal}\`.\n` +
+      `> \`⭐\` × Suma do nagród: \`${newDisplayedInvites}\` (prawdziwe + dodatkowe).` +
+      (statsSaved ? "" : "\n> `⚠️` × Zmiana działa teraz, ale zapis w bazie się nie powiódł. Bot ponowi zapis; sprawdź licznik przed restartem.") +
       (
         pendingInviteRewardDelivery.deliveredCount > 0
           ? `\n> \`📩\` × Wysłałem na PV kod za nagrodę: \`${pendingInviteRewardDelivery.deliveredLabels.join(", ")}\`.`
