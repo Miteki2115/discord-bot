@@ -5956,7 +5956,7 @@ const commands = [
     .toJSON(),
   new SlashCommandBuilder()
     .setName("wezwij")
-    .setDescription("Wezwij klienta ticketa")
+    .setDescription("Wezwij klienta")
     .setDefaultMemberPermissions(null)
     .toJSON(),
   new SlashCommandBuilder()
