@@ -4010,8 +4010,9 @@ async function handleWezwijCommand(interaction) {
     return;
   }
 
-  // Sprawdź uprawnienia: admin/sprzedawca/helper
-  if (!isAdminOrSeller(interaction.member)) {
+  // Wybrana osoba jest opcją wyłącznie właściciela, przed nadaniem dostępu i wysłaniem DM.
+  const targetUser = interaction.options.getUser("uzytkownik");
+  if (!isGuildOwner(interaction) && (!isActiveSeller(interaction) || targetUser)) {
     await interaction.reply({
       content: "> `❌` × Brak uprawnień do użycia tej komendy.",
       flags: [MessageFlags.Ephemeral],
@@ -4019,7 +4020,6 @@ async function handleWezwijCommand(interaction) {
     return;
   }
 
-  const targetUser = interaction.options.getUser("uzytkownik");
   const channelLink = `https://discord.com/channels/${interaction.guildId}/${channel.id}`;
 
   if (targetUser) {
@@ -5132,6 +5132,8 @@ function buildInviteStatsCommand() {
   return command.toJSON();
 }
 
+const { isGuildOwner, isActiveSeller, canUseSlashCommand, applyCommandVisibility } = require("./command-access.cjs");
+
 const commands = [
   new SlashCommandBuilder()
     .setName("panel-wyslij")
@@ -5959,7 +5961,7 @@ const commands = [
     .addUserOption((option) =>
       option
         .setName("uzytkownik")
-        .setDescription("Użytkownik, którego chcesz wezwać (opcjonalnie)")
+        .setDescription("Tylko właściciel: wybrana osoba. Bez opcji: wezwanie klienta ticketu.")
         .setRequired(false)
     )
     .toJSON(),
@@ -6087,7 +6089,7 @@ const commands = [
       o.setName("sprzedawca").setDescription("Wybierz sprzedawcę").setRequired(false)
     )
     .toJSON(),
-];
+].map(applyCommandVisibility);
 
 const rest = new REST({ version: "10", api: DISCORD_API_BASE }).setToken(process.env.BOT_TOKEN);
 
@@ -9711,27 +9713,8 @@ async function handleButtonInteraction(interaction) {
 async function handleSlashCommand(interaction) {
   const { commandName } = interaction;
 
-  // Gate: zwykły użytkownik widzi/uruchomi tylko publiczne komendy
-  const publicCommands = new Set(["opinia", "help", "sprawdz-zaproszenia", "ostrzezenia", "warns", "znizka", "ustawienia"]);
-  // Komendy wymagające własnych uprawnień, ale nie blokowane przez seller/admin gate
-  const bypassGate = new Set(["panel-wyslij", "utworz-konkurs", "wyczysckanal", "stworzkonkurs", "end-giveaways", "ostrzezenie", "warn", "ostrzezenie-usun", "unwarn"]);
-  const SELLER_ROLE_ID = "1350786945944391733";
-  const HELPER_ROLE_ID = "1519069239254974475";
-  const SUSPENDED_ROLE_ID = "1537090439239442483";
-  const isSeller = interaction.member?.roles?.cache?.has(SELLER_ROLE_ID);
-  const isHelper = interaction.member?.roles?.cache?.has(HELPER_ROLE_ID);
-  const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator);
-  const isSuspended = interaction.member?.roles?.cache?.has(SUSPENDED_ROLE_ID);
-
-  // Zawieszony sprzedawca nie może używać komend sprzedawcy (admini bez ograniczeń)
-  if (!isAdmin && isSuspended && !publicCommands.has(commandName) && !bypassGate.has(commandName)) {
-    await interaction.reply({
-      content: "> `🔴` × Twoje konto sprzedawcy jest zawieszone i nie możesz używać tej komendy.",
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
-  if (!isAdmin && !isSeller && !isHelper && !publicCommands.has(commandName) && !bypassGate.has(commandName)) {
+  // Rola administratora/helpera nie daje dostępu do prywatnych komend właściciela.
+  if (!canUseSlashCommand(interaction)) {
     await interaction.reply({
       content: "> `❌` × Nie masz uprawnień do tej komendy.",
       flags: [MessageFlags.Ephemeral],
@@ -17816,10 +17799,7 @@ async function handleCloseTicketCommand(interaction) {
 }
 
 async function handleAddUserToTicketCommand(interaction) {
-  const isOwner = interaction.user.id === interaction.guild.ownerId;
-  const hasSellerRole = interaction.member?.roles?.cache?.has(BASE_SELLER_ROLE_ID);
-
-  if (!isOwner && !hasSellerRole) {
+  if (!isGuildOwner(interaction) && !isActiveSeller(interaction)) {
     await interaction.reply({
       content: "> `❗` × Tylko właściciel lub sprzedawca może użyć tej komendy.",
       flags: [MessageFlags.Ephemeral],
@@ -19140,7 +19120,11 @@ async function handleWydaneCommand(interaction) {
 
 // ----------------- /topwydane handler -----------------
 async function handleTopWydaneCommand(interaction) {
-  await interaction.deferReply();
+  if (!isGuildOwner(interaction)) {
+    await interaction.reply({ content: "> `❌` × Ta komenda jest dostępna tylko dla właściciela serwera.", flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
   try {
     const topList = await db.getTopSpenders(10, interaction.guildId || "default");
