@@ -2766,9 +2766,7 @@ function buildFreeKasaResultEmbed({
 
   return new EmbedBuilder()
     .setColor(loss ? COLOR_GRAY : COLOR_YELLOW)
-    .setBrandFooter()
-    .setDescription(description.join("\n"))
-    .setTimestamp();
+    .setDescription(description.join("\n"));
 }
 
 function formatRewardCashAmount(amount = 0) {
@@ -3653,9 +3651,19 @@ function buildFreeKasaResultEmbed({
 
   return new EmbedBuilder()
     .setColor(loss ? COLOR_GRAY : COLOR_YELLOW)
-    .setBrandFooter()
-    .setDescription(description.join("\n"))
-    .setTimestamp();
+    .setDescription(description.join("\n"));
+}
+
+function buildFreeKasaResultPayload({ user, guildId, reward = null, loss = false, retryTimestamp = null }) {
+  const embed = buildFreeKasaResultEmbed({ user, reward, loss, retryTimestamp });
+  const container = new ContainerBuilder().setAccentColor(embed.data.color);
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(embed.data.description));
+  appendBrandFooterToContainer(container, guildId);
+  return {
+    components: [new TextDisplayBuilder().setContent(`<@${user.id}>`), container],
+    flags: MessageFlags.IsComponentsV2,
+    allowedMentions: { users: [user.id] },
+  };
 }
 
 async function sendFreeKasaPublicResult(interaction, payload) {
@@ -3754,11 +3762,8 @@ async function handleFreeKasaCommand(interaction) {
   const retryTimestamp = Math.floor((now + FREE_KASA_COOLDOWN_MS) / 1000);
 
   if (!reward) {
-    await sendFreeKasaPublicResult(interaction, {
-      content: `<@${user.id}>`,
-      allowedMentions: { users: [user.id] },
-      embeds: [buildFreeKasaResultEmbed({ user, loss: true, retryTimestamp })],
-    });
+    await sendFreeKasaPublicResult(interaction,
+      buildFreeKasaResultPayload({ user, guildId, loss: true, retryTimestamp }));
     await refreshFreeKasaInstruction(channel);
     return;
   }
@@ -3799,11 +3804,8 @@ async function handleFreeKasaCommand(interaction) {
       dmDelivered = false;
     }
 
-    await sendFreeKasaPublicResult(interaction, {
-      content: `<@${user.id}>`,
-      allowedMentions: { users: [user.id] },
-      embeds: [buildFreeKasaResultEmbed({ user, reward })],
-    });
+    await sendFreeKasaPublicResult(interaction,
+      buildFreeKasaResultPayload({ user, guildId, reward }));
     await refreshFreeKasaInstruction(channel);
 
     if (!dmDelivered) {
@@ -3835,11 +3837,8 @@ async function handleFreeKasaCommand(interaction) {
     dmDelivered = false;
   }
 
-  await sendFreeKasaPublicResult(interaction, {
-    content: `<@${user.id}>`,
-    allowedMentions: { users: [user.id] },
-    embeds: [buildFreeKasaResultEmbed({ user, reward })],
-  });
+  await sendFreeKasaPublicResult(interaction,
+    buildFreeKasaResultPayload({ user, guildId, reward }));
   await refreshFreeKasaInstruction(channel);
 
   if (!dmDelivered) {
