@@ -5450,7 +5450,7 @@ const commands = [
     .toJSON(),
   new SlashCommandBuilder()
     .setName("dodaj")
-    .setDescription("Dodaj osobę do bieżącego ticketu")
+    .setDescription("Dodaj osobę do ticketa")
     .setDefaultMemberPermissions(null)
     .addUserOption((option) =>
       option
