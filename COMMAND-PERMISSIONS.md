@@ -9,8 +9,9 @@ Klient może używać tylko `/znizka`. Aktywny sprzedawca może dodatkowo używa
 
 Wszystkie pozostałe komendy są tylko dla właściciela, również oba rankingi
 `top-wydane` i `topwydane`. Wyniki rankingów są prywatne.
-Sprzedawca używa `/wezwij` bez argumentu; argument `uzytkownik` jest tylko
-dla właściciela. Sprzedawca nadal może używać `/dodaj osoba:`.
+Sprzedawca używa `/wezwij` bez argumentów. Właściciel może dodatkowo używać
+`/wezwij-osobe uzytkownik:`. Nie udostępniaj `wezwij-osobe` roli Sprzedawca.
+Sprzedawca nadal może używać `/dodaj osoba:`.
 Zawieszony sprzedawca traci dostęp do komend sprzedawcy.
 Przyciski opinii i zaproszeń nadal działają dla klientów.
 

@@ -4012,7 +4012,7 @@ async function handleWezwijCommand(interaction) {
 
   // Wybrana osoba jest opcją wyłącznie właściciela, przed nadaniem dostępu i wysłaniem DM.
   const targetUser = interaction.options.getUser("uzytkownik");
-  if (!isGuildOwner(interaction) && (!isActiveSeller(interaction) || targetUser)) {
+  if (!isGuildOwner(interaction) && (!isActiveSeller(interaction) || targetUser || interaction.commandName === "wezwij-osobe")) {
     await interaction.reply({
       content: "> `❌` × Brak uprawnień do użycia tej komendy.",
       flags: [MessageFlags.Ephemeral],
@@ -5956,13 +5956,18 @@ const commands = [
     .toJSON(),
   new SlashCommandBuilder()
     .setName("wezwij")
-    .setDescription("Wezwij osobe")
+    .setDescription("Wezwij klienta ticketa")
     .setDefaultMemberPermissions(null)
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName("wezwij-osobe")
+    .setDescription("Wezwij wybraną osobę do ticketa")
+    .setDefaultMemberPermissions(0)
     .addUserOption((option) =>
       option
         .setName("uzytkownik")
-        .setDescription("Tylko właściciel: wybrana osoba. Bez opcji: wezwanie klienta ticketu.")
-        .setRequired(false)
+        .setDescription("Osoba, którą chcesz wezwać")
+        .setRequired(true)
     )
     .toJSON(),
   new SlashCommandBuilder()
@@ -10054,6 +10059,7 @@ async function handleSlashCommand(interaction) {
       await handleRozliczenieUstawCommand(interaction);
       break;
     case "wezwij":
+    case "wezwij-osobe":
       await handleWezwijCommand(interaction);
       break;
     case "zaproszenia-edytuj":

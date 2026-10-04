@@ -37,6 +37,17 @@ test("wezwij target is owner-only, no target permits seller", () => {
   assert(canUseSlashCommand(interaction("wezwij", [SELLER_ROLE_ID])));
   assert.equal(canUseSlashCommand(interaction("wezwij", [SELLER_ROLE_ID], false, { id: "target" })), false);
   assert(canUseSlashCommand(interaction("wezwij", [], true, { id: "target" })));
+  assert.equal(canUseSlashCommand(interaction("wezwij-osobe", [SELLER_ROLE_ID], false, { id: "target" })), false);
+  assert(canUseSlashCommand(interaction("wezwij-osobe", [], true, { id: "target" })));
+});
+test("seller wezwij schema has no options; owner command requires a user", () => {
+  const block = source.slice(source.indexOf('    .setName("wezwij")'), source.indexOf('    .setName("statusbota")'));
+  const sellerBlock = block.slice(0, block.indexOf(".toJSON()") + ".toJSON()".length);
+  const ownerBlock = block.slice(block.indexOf('    .setName("wezwij-osobe")'));
+  assert(!sellerBlock.includes(".addUserOption"));
+  assert(ownerBlock.includes(".addUserOption"));
+  assert(ownerBlock.includes(".setRequired(true)"));
+  assert(source.includes('case "wezwij-osobe":'));
 });
 test("default visibility exposes only znizka and disables DMs", () => {
   for (const name of names) {
