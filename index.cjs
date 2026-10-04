@@ -25913,22 +25913,18 @@ async function handleSprawdzZaproszeniaCommand(interaction) {
     ? `> \`🎁\` × **Masz do odbioru:** \`${availableInviteRewards.map((reward) => reward.label).join(", ")}\`\n`
     : nextInviteReward
       ? `> \`💸\` × **Brakuje Ci do kolejnej nagrody:** \`${Math.max(0, nextInviteReward.threshold - displayedInvites)}\`\n`
-      : "> `🎁` × **Wszystkie obecne nagrody z zaproszeń masz już odebrane.**\n";
+      : "> `❗` × **Wszystkie obecne nagrody z zaproszeń masz już odebrane.**\n";
 
-  // Embed
-  const embed = new EmbedBuilder()
-    .setColor(COLOR_BLUE)
-    .setDescription(
+  const description =
       "```\n" +
       "📩 New Shop × ZAPROSZENIA\n" +
       "```\n" +
-      `> \`👤\` × <@${userId}> **posiada:** \`${displayedInvites}\` **${inviteWord}**!\n` +
+      `> \`👤\` × <@${userId}> **posiadasz:** \`${displayedInvites}\` **${inviteWord}**!\n` +
       `${rewardStatusLine}\n` +
       `> \`👥\` × **Prawdziwe osoby które dołączyły:** \`${displayedInvites}\`\n` +
       `> \`🚶\` × **Osoby które opuściły serwer:** \`${left}\`\n` +
       `> \`⚠️\` × **Niespełniające kryteriów (< konto 2 mies.):** \`${fake}\`\n` +
-      `> \`🎁\` × **Dodatkowe zaproszenia:** \`${bonus}\``
-    );
+      `> \`🎁\` × **Dodatkowe zaproszenia:** \`${bonus}\``;
 
   try {
     const content =
@@ -25938,9 +25934,19 @@ async function handleSprawdzZaproszeniaCommand(interaction) {
           ? "> `❌` × Nie mogłem wysłać kodu na PV. Włącz wiadomości prywatne i użyj komendy ponownie."
           : null;
 
+    const container = new ContainerBuilder().setAccentColor(COLOR_BLUE);
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(description));
+    if (content) {
+      container.addSeparatorComponents(new SeparatorBuilder().setDivider(true));
+      container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
+    }
+    appendBrandFooterToContainer(container, guildId);
     await interaction.editReply({
-      content: content || undefined,
-      embeds: [embed],
+      content: null,
+      embeds: [],
+      components: [container],
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+      allowedMentions: { parse: [] },
     });
   } catch (err) {
     console.error("Błąd przy odpowiedzi sprawdz-zaproszenia:", err);
