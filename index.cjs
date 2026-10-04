@@ -5075,7 +5075,7 @@ const INVITE_COUNTER_CHOICES = [
 
 function buildInviteStatsCommand() {
   const command = new SlashCommandBuilder()
-    .setName("zaproszeniastats")
+    .setName("zaproszenia-edytuj")
     .setDescription("Liczniki zaproszeń: podgląd i zmiany (tylko właściciel serwera)")
     .setDMPermission(false)
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
@@ -10086,7 +10086,7 @@ async function handleSlashCommand(interaction) {
     case "wezwij":
       await handleWezwijCommand(interaction);
       break;
-    case "zaproszeniastats":
+    case "zaproszenia-edytuj":
       await handleZaprosieniaStatsCommand(interaction);
       break;
     case "stworzkonkurs":
@@ -25916,7 +25916,7 @@ async function handleSprawdzZaproszeniaCommand(interaction) {
 }
 
 // ---------------------------------------------------
-// Nowa komenda: /zaproszeniastats
+// Nowa komenda: /zaproszenia-edytuj
 async function handleZaprosieniaStatsCommand(interaction) {
   const respond = (payload) => {
     if (!interaction.deferred && !interaction.replied) return interaction.reply(payload);
@@ -26177,7 +26177,7 @@ async function handleZaprosieniaStatsCommand(interaction) {
       interaction.guild,
       user.id,
     ).catch((error) => {
-      console.error("[invites] Błąd wysyłania kodu po /zaproszeniastats edytuj:", error);
+      console.error("[invites] Błąd wysyłania kodu po /zaproszenia-edytuj edytuj:", error);
       return { deliveredCount: 0, deliveredLabels: [], blocked: false };
     });
 
