@@ -5728,6 +5728,15 @@ const commands = [
     )
     .toJSON(),
   new SlashCommandBuilder()
+    .setName("embedtest-zapisz")
+    .setDescription("Pobierz panel embedtest jako JSON do przesłania i dodania do /panel-wyslij")
+    .setDMPermission(false)
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .addStringOption((o) => o.setName("nazwa").setDescription("Nazwa panelu, np. cennik-anarchia").setRequired(true).setMaxLength(80))
+    .addChannelOption((o) => o.setName("kanal").setDescription("Kanał z panelem; domyślnie obecny kanał").addChannelTypes(ChannelType.GuildText))
+    .addStringOption((o) => o.setName("wiadomosc").setDescription("ID konkretnej wiadomości; bez tego zapisze ostatni panel").setMaxLength(25))
+    .toJSON(),
+  new SlashCommandBuilder()
     .setName("zaaktualizuj-film")
     .setDescription("Podmień film/obraz w najbliższym embedtest na nowy plik")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
@@ -10019,6 +10028,9 @@ async function handleSlashCommand(interaction) {
       break;
     case "sprawdzembedtest":
       await handleSprawdzEmbedTestCommand(interaction);
+      break;
+    case "embedtest-zapisz":
+      await handleEmbedTestExportCommand(interaction);
       break;
     case "ustaw-tickety-sprzedawcy":
       await handleUstawTicketySprzedawcyCommand(interaction);
@@ -15885,6 +15897,81 @@ async function findLatestLegacyModyPanelMessage(channel) {
   }
 
   return null;
+}
+
+function buildEmbedTestExport(name, message, state) {
+  const attachments = [...(message.attachments?.values() || [])].map((item) => ({
+    name: item.name, url: item.url, contentType: item.contentType || null,
+  }));
+  const fields = [
+    "variant", "accentColorKey", "accentColor", "headerBadge", "headerNote", "title",
+    "cashSectionTitle", "cashBody", "itemsSectionTitle", "itemsBody",
+    "extraSectionTitle", "extraSectionBody", "extraSectionTwoTitle", "extraSectionTwoBody",
+    "pages", "mediaUrls",
+    ...["One", "Two", "Three"].flatMap((button) =>
+      ["Label", "Emoji", "Action", "Url"].map((field) => `button${button}${field}`)),
+  ];
+  const exportedState = state ? JSON.parse(JSON.stringify(Object.fromEntries(
+    fields.filter((key) => state[key] !== undefined).map((key) => [key, state[key]]),
+  ))) : null;
+  if (exportedState?.mediaUrls) exportedState.mediaUrls = exportedState.mediaUrls.map((url) => {
+    if (!url.startsWith("attachment://")) return url;
+    return attachments.find((item) => item.name === url.slice("attachment://".length))?.url || url;
+  });
+  return {
+    format: "newshop-panel", version: 1, name, exportedAt: new Date().toISOString(),
+    source: { guildId: message.guildId, channelId: message.channelId, messageId: message.id },
+    state: exportedState,
+    message: {
+      content: message.content || "",
+      embeds: message.embeds.map((embed) => embed.toJSON()),
+      components: message.components.map(getSerializableMessageComponent).filter(Boolean),
+      flags: message.flags?.bitfield || 0, attachments,
+    },
+  };
+}
+
+async function handleEmbedTestExportCommand(interaction) {
+  if (!interaction.guild || (interaction.user.id !== interaction.guild.ownerId
+      && !interaction.member?.permissions?.has(PermissionFlagsBits.ManageChannels))) {
+    await interaction.reply({ content: "> `❌` × Eksport paneli wymaga zarządzania kanałami na serwerze.", flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+  try {
+    const channel = interaction.options.getChannel("kanal") || interaction.channel;
+    if (!channel?.isTextBased() || !channel.messages?.fetch) {
+      await interaction.editReply({ content: "> `❌` × Wybierz kanał tekstowy z panelem." });
+      return;
+    }
+    const id = interaction.options.getString("wiadomosc");
+    if (id && !/^\d{17,20}$/.test(id)) {
+      await interaction.editReply({ content: "> `❌` × Pole `wiadomosc` wymaga ID wiadomości (17–20 cyfr)." });
+      return;
+    }
+    const message = id ? await channel.messages.fetch(id).catch(() => null) : await findLatestEmbedTestMessage(channel);
+    if (!message || message.author?.id !== client.user.id) {
+      await interaction.editReply({ content: "> `❌` × Nie znalazłem panelu bota. Wybierz kanał albo podaj ID konkretnej wiadomości." });
+      return;
+    }
+    const state = embedTestStates.get(message.id) || regulationPanels.get(message.id)
+      || reconstructEmbedTestStateFromMessage(message, interaction.user.id);
+    const name = interaction.options.getString("nazwa", true).trim();
+    if (!name) {
+      await interaction.editReply({ content: "> `❌` × Podaj nazwę panelu." });
+      return;
+    }
+    const data = buildEmbedTestExport(name, message, state);
+    const filename = name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 80) || "panel";
+    await interaction.editReply({
+      content: "> `✅` × Panel zapisany do pliku JSON. Pobierz plik i wyślij go AI z nazwą, pod którą ma trafić do `/panel-wyslij`.",
+      files: [new AttachmentBuilder(Buffer.from(JSON.stringify(data, null, 2), "utf8"), { name: `${filename}.json` })],
+    });
+  } catch (error) {
+    console.error("[embedtest-zapisz] Błąd eksportu:", error);
+    await interaction.editReply({ content: "> `❌` × Nie udało się wyeksportować panelu. Sprawdź dostęp bota do wiadomości." });
+  }
 }
 
 async function handleSprawdzEmbedTestCommand(interaction) {
@@ -25871,7 +25958,7 @@ async function handleSprawdzZaproszeniaCommand(interaction) {
   const rewardStatusLine = availableInviteRewards.length
     ? `> \`🎁\` × **Masz do odbioru:** \`${availableInviteRewards.map((reward) => reward.label).join(", ")}\`\n`
     : nextInviteReward
-      ? `> \`💸\` × **${hasPreviousInviteReward ? "Brakuje Ci do kolejnej nagrody:" : "Brakuje Ci do nagrody:"}** \`${Math.max(0, nextInviteReward.threshold - displayedInvites)}\`\n`
+      ? `> \`💸\` × **${hasPreviousInviteReward ? "Brakuje Ci do następnej nagrody:" : "Brakuje Ci do nagrody:"}** \`${Math.max(0, nextInviteReward.threshold - displayedInvites)}\`\n`
       : "> `❗` × **Odebrałeś już wszystkie nagrody za zaproszenia.**\n";
 
   const description =
