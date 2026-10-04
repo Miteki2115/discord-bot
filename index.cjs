@@ -25913,7 +25913,7 @@ async function handleSprawdzZaproszeniaCommand(interaction) {
     ? `> \`🎁\` × **Masz do odbioru:** \`${availableInviteRewards.map((reward) => reward.label).join(", ")}\`\n`
     : nextInviteReward
       ? `> \`💸\` × **Brakuje Ci do kolejnej nagrody:** \`${Math.max(0, nextInviteReward.threshold - displayedInvites)}\`\n`
-      : "> `❗` × **Wszystkie obecne nagrody z zaproszeń masz już odebrane.**\n";
+      : "> `❗` × **Odebrałeś już wszystkie nagrody za zaproszenia.**\n";
 
   const description =
       "```\n" +
