@@ -25866,10 +25866,12 @@ async function handleSprawdzZaproszeniaCommand(interaction) {
   const inviteWord = getInviteWord(displayedInvites);
   const availableInviteRewards = getAvailableInviteRewardMilestones(guildId, userId);
   const nextInviteReward = getNextInviteRewardMilestone(guildId, userId);
+  const hasPreviousInviteReward = getClaimedInviteRewardLevels(guildId, userId).size > 0
+    || getIssuedInviteRewardLevels(guildId, userId).size > 0;
   const rewardStatusLine = availableInviteRewards.length
     ? `> \`🎁\` × **Masz do odbioru:** \`${availableInviteRewards.map((reward) => reward.label).join(", ")}\`\n`
     : nextInviteReward
-      ? `> \`💸\` × **Brakuje Ci do kolejnej nagrody:** \`${Math.max(0, nextInviteReward.threshold - displayedInvites)}\`\n`
+      ? `> \`💸\` × **${hasPreviousInviteReward ? "Brakuje Ci do kolejnej nagrody:" : "Brakuje Ci do nagrody:"}** \`${Math.max(0, nextInviteReward.threshold - displayedInvites)}\`\n`
       : "> `❗` × **Odebrałeś już wszystkie nagrody za zaproszenia.**\n";
 
   const description =
