@@ -17013,8 +17013,7 @@ function buildZaproszeniaInstructionPayload() {
 
   const btn = new ButtonBuilder()
     .setCustomId("btn_sprawdz_zaproszenia")
-    .setLabel("︲Sprawdź zaproszenia")
-    .setEmoji("📩")
+    .setLabel("📩︲Sprawdź zaproszenia")
     .setStyle(ButtonStyle.Secondary);
 
   container.addActionRowComponents(
