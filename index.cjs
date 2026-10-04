@@ -1975,7 +1975,7 @@ const FREE_KASA_REWARD_POOL = [
     kind: "reward",
     rewardText: "10k$ na Anarchia LF",
     rewardAmount: 10000,
-    weight: 40,
+    weight: 202,
   },
   {
     key: "discount_10",
@@ -1989,7 +1989,7 @@ const FREE_KASA_REWARD_POOL = [
     kind: "discount",
     rewardText: "Zniżka -5% na zakupy",
     discount: 5,
-    weight: 60,
+    weight: 304,
   },
   {
     key: "item_sword",
@@ -2687,8 +2687,9 @@ async function saveStateToSupabase(data) {
 
 // ----------------- FREE KASA -----------------
 function pickFreeKasaReward() {
-  // Szansa na wygraną czegokolwiek (w procentach). Ustawione na 5% (wygrywa średnio raz na ok. 20 losowań).
-  const WIN_CHANCE = 5.0;
+  // 15% łącznie. Dodatkowe 10 punktów procentowych trafia do 10k$ i zniżki -5%.
+  // Suma wag wzrosła trzykrotnie (203 -> 609), więc szanse innych nagród są zachowane.
+  const WIN_CHANCE = 15.0;
 
   if (Math.random() * 100 > WIN_CHANCE) {
     return null; // Pusty los
@@ -6937,6 +6938,9 @@ client.once(Events.ClientReady, async (c) => {
 
   await persistentStateReady;
 
+  // Timer wraca po wczytaniu stanu także w trybie core, przed jego early return.
+  scheduleRandomAutoLegitCheck();
+
   if (!ENABLE_HEAVY_STARTUP_SYNC) {
     // Najpierw dostępność komend. Pełne skanowanie historii wiadomości i paneli
     // wykonywało setki GET-ów, wpadało w globalny rate limit i blokowało reply.
@@ -7068,9 +7072,6 @@ client.once(Events.ClientReady, async (c) => {
       }
       scheduleRepChannelRename(repChannel, legitRepCount).catch(() => null);
     }
-
-    // Start automatycznego wystawiania legit checków (bot sam podbija licznik).
-    scheduleRandomAutoLegitCheck();
 
   // Try to find previously sent rep info message so we can reuse it
   if (repChannel) {
@@ -25057,7 +25058,12 @@ async function handleAutoLcTimerCommand(interaction) {
   if (action === "start") {
     autoLcEnabled = true;
     scheduleRandomAutoLegitCheck();
-    scheduleSavePersistentState(true);
+    const saved = await saveStateToSupabase(buildPersistentStateData());
+    if (!saved) {
+      scheduleSavePersistentState(true);
+      await interaction.editReply({ content: "> `⚠️` × Timer działa, ale zapis w bazie nie powiódł się. Ponowię zapis; ustawienie po restarcie nie jest jeszcze potwierdzone." });
+      return;
+    }
     const nextTime = autoLcNextFireAt > 0 ? new Date(autoLcNextFireAt) : null;
     const nextTimeStr = nextTime ? nextTime.toLocaleString("pl-PL", { timeZone: "Europe/Warsaw" }) : "wkrótce";
     await interaction.editReply({
@@ -25073,7 +25079,12 @@ async function handleAutoLcTimerCommand(interaction) {
       autoLcTimer = null;
     }
     autoLcNextFireAt = 0;
-    scheduleSavePersistentState(true);
+    const saved = await saveStateToSupabase(buildPersistentStateData());
+    if (!saved) {
+      scheduleSavePersistentState(true);
+      await interaction.editReply({ content: "> `⚠️` × Timer został zatrzymany, ale zapis w bazie nie powiódł się. Ponowię zapis; ustawienie po restarcie nie jest jeszcze potwierdzone." });
+      return;
+    }
     await interaction.editReply({
       content: "> `⏹️` × **Timer auto LC:** zatrzymany (zapisano w bazie – pozostanie zatrzymany po restarcie bota). Żaden automatyczny legit check nie zostanie wystawiony, dopóki nie włączysz go ponownie (`/autolc-timer akcja:start`).",
     });
