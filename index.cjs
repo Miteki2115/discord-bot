@@ -5058,6 +5058,7 @@ const SENDABLE_PANELS = [
   { name: "Darmowa kasa", value: "darmowa-kasa", payload: (interaction) => buildFreeKasaInstructionPayload(interaction.guildId) },
   { name: "Legit checki", value: "legit-checki", send: (interaction) => sendLegitCheckInfoMessage(interaction.channel) },
   { name: "Rozliczenia sprzedawców", value: "rozliczenia", payload: (interaction) => buildRozliczeniaPanelPayload(interaction.guildId) },
+  { name: "Regulamin", value: "regulamin", send: sendSavedRegulationPanel },
 ];
 
 const commands = [
@@ -17272,6 +17273,31 @@ async function handlePanelWyslijCommand(interaction) {
     console.error("[panel-wyslij] Nie udało się wysłać panelu:", error);
     await respond("> `❌` × Nie udało się wysłać panelu. Sprawdź uprawnienia bota do kanału.");
   }
+}
+
+async function sendSavedRegulationPanel(interaction) {
+  const candidates = [...regulationPanels.entries()]
+    .filter(([, state]) => state.guildId === interaction.guildId)
+    .sort(([leftId, left], [rightId, right]) => {
+      const localDifference = Number(right.channelId === interaction.channelId) - Number(left.channelId === interaction.channelId);
+      if (localDifference) return localDifference;
+      return BigInt(rightId) > BigInt(leftId) ? 1 : BigInt(rightId) < BigInt(leftId) ? -1 : 0;
+    });
+  const sourceState = candidates.length ? getRegulationPanelStateByMessageId(candidates[0][0]) : null;
+  const state = sourceState
+    ? cloneRegulationPanelState(sourceState, {
+      ownerId: interaction.user.id, guildId: interaction.guildId,
+      channelId: interaction.channelId, messageId: null, persistPanel: true,
+    })
+    : createDefaultRegulaminState(interaction.guild, interaction.channel, interaction.user.id, null);
+  await ensureEmbedTestEmojiCache(interaction.guildId);
+  const sent = await interaction.channel.send({ ...buildEmbedTestMessagePayload(state), allowedMentions: { parse: [] } });
+  delete state.mediaFiles;
+  state.messageId = sent.id;
+  state.persistPanel = true;
+  embedTestStates.set(sent.id, state);
+  regulationPanels.set(sent.id, cloneRegulationPanelState(state));
+  scheduleSavePersistentState(true);
 }
 
 async function showTestPanelZakupModal(interaction) {
