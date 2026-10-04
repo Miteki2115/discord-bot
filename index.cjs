@@ -5047,7 +5047,31 @@ const DEFAULT_NAMES = {
   },
 };
 
+const SENDABLE_PANELS = [
+  { name: "Ticketowy (ticketpanel)", value: "ticketowy", handler: handleTicketPanelCommand },
+  { name: "Panel klienta", value: "panel-klienta", handler: handlePanelKlientaCommand },
+  { name: "Ustaw dane sprzedawcy", value: "ustaw-dane", handler: handlePanelDaneCommand },
+  { name: "Kalkulator waluty", value: "kalkulator", handler: handlePanelKalkulatorCommand },
+  { name: "Weryfikacja", value: "weryfikacja", handler: handlePanelWeryfikacjaCommand },
+  { name: "Zaproszenia", value: "zaproszenia", handler: (interaction) => handlePanelZaproszenCommand(interaction, interaction.channel) },
+  { name: "Opinie klientów", value: "opinie", payload: () => buildOpinionInstructionPayload() },
+  { name: "Darmowa kasa", value: "darmowa-kasa", payload: (interaction) => buildFreeKasaInstructionPayload(interaction.guildId) },
+  { name: "Legit checki", value: "legit-checki", send: (interaction) => sendLegitCheckInfoMessage(interaction.channel) },
+  { name: "Rozliczenia sprzedawców", value: "rozliczenia", payload: (interaction) => buildRozliczeniaPanelPayload(interaction.guildId) },
+];
+
 const commands = [
+  new SlashCommandBuilder()
+    .setName("panel-wyslij")
+    .setDescription("Wyślij gotowy panel na bieżący kanał")
+    .setDMPermission(false)
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .addStringOption((option) => option
+      .setName("panel")
+      .setDescription("Wybierz panel do wysłania")
+      .setRequired(true)
+      .addChoices(...SENDABLE_PANELS.map(({ name, value }) => ({ name, value }))))
+    .toJSON(),
   new SlashCommandBuilder()
     .setName("cennik")
     .setDescription("Pokazuje lub zmienia cennik kalkulatora (tylko administracja)")
@@ -9735,7 +9759,7 @@ async function handleSlashCommand(interaction) {
   // Gate: zwykły użytkownik widzi/uruchomi tylko publiczne komendy
   const publicCommands = new Set(["opinia", "help", "sprawdz-zaproszenia", "ostrzezenia", "warns", "znizka", "ustawienia"]);
   // Komendy wymagające własnych uprawnień, ale nie blokowane przez seller/admin gate
-  const bypassGate = new Set(["utworz-konkurs", "wyczysckanal", "stworzkonkurs", "end-giveaways", "ostrzezenie", "warn", "ostrzezenie-usun", "unwarn"]);
+  const bypassGate = new Set(["panel-wyslij", "utworz-konkurs", "wyczysckanal", "stworzkonkurs", "end-giveaways", "ostrzezenie", "warn", "ostrzezenie-usun", "unwarn"]);
   const SELLER_ROLE_ID = "1350786945944391733";
   const HELPER_ROLE_ID = "1519069239254974475";
   const SUSPENDED_ROLE_ID = "1537090439239442483";
@@ -9761,6 +9785,9 @@ async function handleSlashCommand(interaction) {
   }
 
   switch (commandName) {
+    case "panel-wyslij":
+      await handlePanelWyslijCommand(interaction);
+      break;
     case "znizka": {
       if (!isTicketChannel(interaction.channel)) {
         await interaction.reply({
@@ -11319,14 +11346,13 @@ async function handlePanelKalkulatorCommand(interaction) {
   container.addActionRowComponents(new ActionRowBuilder().addComponents(typeSelect));
   appendBrandFooterToContainer(container, interaction.guildId);
 
-  await interaction.reply({
-    content: "> `✅` × **Panel** kalkulatora został wysłany na ten **kanał**.",
-    flags: [MessageFlags.Ephemeral],
-  });
-
+  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
   await interaction.channel.send({
     components: [container],
     flags: MessageFlags.IsComponentsV2
+  });
+  await interaction.editReply({
+    content: "> `✅` × **Panel** kalkulatora został wysłany na ten **kanał**.",
   });
 }
 
@@ -12744,7 +12770,8 @@ async function handlePanelWeryfikacjaCommand(interaction) {
 
   try {
     // dołączamy plik i nadajemy mu prostą nazwę, której użyjemy w embed (attachment://standard_1.gif)
-    attachment = new AttachmentBuilder(gifPath, { name: "standard_1.gif" });
+    attachment = fs.existsSync(gifPath)
+      ? new AttachmentBuilder(gifPath, { name: "standard_1.gif" }) : null;
   } catch (err) {
     console.warn("Nie udało się załadować lokalnego GIFa:", err);
     attachment = null;
@@ -17131,10 +17158,10 @@ async function ensureInvitePanel(channel) {
   }
 }
 
-async function handlePanelZaproszenCommand(interaction) {
+async function handlePanelZaproszenCommand(interaction, targetChannel = null) {
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
   try {
-    const zapCh =
+    const zapCh = targetChannel ||
       interaction.guild.channels.cache.get(SPRAWDZ_ZAPROSZENIA_CHANNEL_ID) ||
       (await client.channels.fetch(SPRAWDZ_ZAPROSZENIA_CHANNEL_ID).catch((e) => {
         console.error("[panel-zaproszen] Błąd pobierania kanału:", e?.message || e);
@@ -17165,7 +17192,7 @@ async function handlePanelZaproszenCommand(interaction) {
     scheduleSavePersistentState();
 
     await interaction.editReply({
-      content: `> \`✅\` × Panel zaproszeń został pomyślnie wysłany na kanał <#${SPRAWDZ_ZAPROSZENIA_CHANNEL_ID}>!`
+      content: `> \`✅\` × Panel zaproszeń został pomyślnie wysłany na kanał <#${zapCh.id}>!`
     });
   } catch (err) {
     console.error("Błąd w handlePanelZaproszenCommand:", err);
@@ -17207,12 +17234,44 @@ function buildTicketPanelPayload() {
 }
 
 async function sendTicketPanel(interaction) {
-  await interaction.reply({
-    content: "> `✅` × **Panel** ticketów wysłany!",
-    flags: [MessageFlags.Ephemeral],
-  });
-
+  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
   await interaction.channel.send(buildTicketPanelPayload());
+  await interaction.editReply({
+    content: "> `✅` × **Panel** ticketów wysłany!",
+  });
+}
+
+async function handlePanelWyslijCommand(interaction) {
+  const respond = (content) => interaction.deferred || interaction.replied
+    ? interaction.editReply({ content })
+    : interaction.reply({ content, flags: [MessageFlags.Ephemeral] });
+  if (!interaction.guild || !interaction.channel?.isTextBased() || typeof interaction.channel.send !== "function") {
+    await respond("> `❌` × Wybierz kanał tekstowy na serwerze.");
+    return;
+  }
+  const isOwner = interaction.user.id === interaction.guild.ownerId;
+  if (!isOwner && !interaction.member?.permissions?.has(PermissionFlagsBits.ManageChannels)) {
+    await respond("> `❗` × Wymagane uprawnienie: Zarządzanie kanałami.");
+    return;
+  }
+  const selected = SENDABLE_PANELS.find((panel) => panel.value === interaction.options.getString("panel", true));
+  if (!selected) {
+    await respond("> `❌` × Nieznany panel. Wybierz panel z listy komendy.");
+    return;
+  }
+  try {
+    if (selected.handler) {
+      await selected.handler(interaction);
+      return;
+    }
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+    if (selected.send) await selected.send(interaction);
+    else await interaction.channel.send({ ...selected.payload(interaction), allowedMentions: { parse: [] } });
+    await respond(`> \`✅\` × Wysłano panel **${selected.name}** na <#${interaction.channelId}>.`);
+  } catch (error) {
+    console.error("[panel-wyslij] Nie udało się wysłać panelu:", error);
+    await respond("> `❌` × Nie udało się wysłać panelu. Sprawdź uprawnienia bota do kanału.");
+  }
 }
 
 async function showTestPanelZakupModal(interaction) {
@@ -27695,6 +27754,24 @@ const weeklySales = new Map(); // userId -> { amount, lastUpdate }
 let rozliczeniaPanelMessageId = null;
 
 // Funkcja do wysyłania wiadomości o rozliczeniach
+function buildRozliczeniaPanelPayload(guildId) {
+  const container = new ContainerBuilder().setAccentColor(COLOR_GREEN);
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent("`💱` × Dodaj **każdą sprzedaż** przyciskiem poniżej.")
+  );
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true));
+  const kasaEmoji = findGuildEmojiByName(guildId, "kasa_3");
+  const btn = new ButtonBuilder()
+    .setCustomId("rozliczenie_dodaj_btn")
+    .setLabel("︲Dodaj sprzedaż")
+    .setStyle(ButtonStyle.Secondary);
+  btn.setEmoji(kasaEmoji
+    ? { id: kasaEmoji.id, name: kasaEmoji.name, animated: kasaEmoji.animated } : "💵");
+  container.addActionRowComponents(new ActionRowBuilder().addComponents(btn));
+  appendBrandFooterToContainer(container, guildId);
+  return { components: [container], flags: MessageFlags.IsComponentsV2 };
+}
+
 async function sendRozliczeniaMessage(options = {}) {
   const force = typeof options === "object" && options?.force === true;
   try {
