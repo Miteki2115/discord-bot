@@ -1,0 +1,101 @@
+{
+  "format": "newshop-panel",
+  "version": 1,
+  "name": "bonusy klientów",
+  "exportedAt": "2026-10-04T18:17:46.845Z",
+  "source": {
+    "guildId": "1350446732365926491",
+    "channelId": "1521896517055807601",
+    "messageId": "1521896913186721864"
+  },
+  "state": {
+    "accentColorKey": "blue",
+    "accentColor": 43775,
+    "headerBadge": "",
+    "headerNote": "",
+    "title": "",
+    "cashSectionTitle": "",
+    "cashBody": "```🛒 New Shop × BONUSY```\n--\n- :kasa_3: **Klient 200+**\n> :arrowwhite: × Od **__200ZŁ__**+ wydanego w naszym sklepie **zyskujesz**\n> :arrowwhite: × __bonus__ w postaci __**+1%**__ waluty do każdego zamówienia.\n\n- :kasa_3: **Klient 500+**\n> :arrowwhite: × Od **__500ZŁ__**+ wydanego w naszym sklepie **zyskujesz**\n> :arrowwhite: × __bonus__ w postaci __**+2%**__ waluty do każdego zamówienia.\n\n- :kasa_3: **Klient 1000+**\n> :arrowwhite: × Od **__1000ZŁ__**+ wydanego w naszym sklepie **zyskujesz**\n> :arrowwhite: × __bonus__ w postaci __**+5%**__ waluty do każdego zamówienia.\n\n- :kasa_3: **Klient 2000+**\n> :arrowwhite: × Od **__2000ZŁ__**+ wydanego w naszym sklepie **zyskujesz**\n> :arrowwhite: × __bonus__ w postaci __**+10%**__ waluty do każdego zamówienia.",
+    "itemsSectionTitle": "",
+    "itemsBody": "",
+    "extraSectionTitle": "",
+    "extraSectionBody": "",
+    "extraSectionTwoTitle": "",
+    "extraSectionTwoBody": "",
+    "mediaUrls": [],
+    "buttonOneLabel": "",
+    "buttonOneEmoji": "",
+    "buttonOneAction": "",
+    "buttonOneUrl": null,
+    "buttonTwoLabel": "📜︲Sprawdź swoje bonusy",
+    "buttonTwoEmoji": "",
+    "buttonTwoAction": "sprawdz_bonusy",
+    "buttonTwoUrl": null,
+    "buttonThreeLabel": "",
+    "buttonThreeEmoji": "",
+    "buttonThreeAction": "",
+    "buttonThreeUrl": null
+  },
+  "message": {
+    "content": "",
+    "embeds": [],
+    "components": [
+      {
+        "type": 17,
+        "id": 1,
+        "accent_color": 43775,
+        "spoiler": false,
+        "components": [
+          {
+            "type": 10,
+            "id": 2,
+            "content": "```🛒 New Shop × BONUSY```"
+          },
+          {
+            "type": 14,
+            "id": 3,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 4,
+            "content": "- <:kasa_3:1494407929145593887> **Klient 200+**\n> <a:arrowwhite:1491476759290449984> × Od **__200ZŁ__**+ wydanego w naszym sklepie **zyskujesz**\n> <a:arrowwhite:1491476759290449984> × __bonus__ w postaci __**+1%**__ waluty do każdego zamówienia.\n\n- <:kasa_3:1494407929145593887> **Klient 500+**\n> <a:arrowwhite:1491476759290449984> × Od **__500ZŁ__**+ wydanego w naszym sklepie **zyskujesz**\n> <a:arrowwhite:1491476759290449984> × __bonus__ w postaci __**+2%**__ waluty do każdego zamówienia.\n\n- <:kasa_3:1494407929145593887> **Klient 1000+**\n> <a:arrowwhite:1491476759290449984> × Od **__1000ZŁ__**+ wydanego w naszym sklepie **zyskujesz**\n> <a:arrowwhite:1491476759290449984> × __bonus__ w postaci __**+5%**__ waluty do każdego zamówienia.\n\n- <:kasa_3:1494407929145593887> **Klient 2000+**\n> <a:arrowwhite:1491476759290449984> × Od **__2000ZŁ__**+ wydanego w naszym sklepie **zyskujesz**\n> <a:arrowwhite:1491476759290449984> × __bonus__ w postaci __**+10%**__ waluty do każdego zamówienia."
+          },
+          {
+            "type": 14,
+            "id": 5,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 1,
+            "id": 6,
+            "components": [
+              {
+                "type": 2,
+                "id": 7,
+                "custom_id": "embedtest_buy_open_sprawdz_bonusy",
+                "style": 2,
+                "label": "📜︲Sprawdź swoje bonusy"
+              }
+            ]
+          },
+          {
+            "type": 14,
+            "id": 8,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 9,
+            "content": "-# <:NewShop:1502672633026707667> © 2026 New Shop"
+          }
+        ]
+      }
+    ],
+    "flags": 32768,
+    "attachments": []
+  }
+}

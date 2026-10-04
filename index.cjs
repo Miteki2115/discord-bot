@@ -5052,6 +5052,28 @@ const DEFAULT_NAMES = {
   },
 };
 
+const IMPORTED_PANEL_NAMES = [
+  ["cennik-anarchia-lf", "Cennik Anarchia LF"],
+  ["cennik-anarchia-boxpvp", "Cennik Anarchia BoxPvP"],
+  ["cennik-minestar-skypvp", "Cennik MineStar SkyPvP"],
+  ["cennik-minestar-lf", "Cennik MineStar LF"],
+  ["cennik-donut-smp", "Cennik Donut SMP"],
+  ["cennik-bedrock-finder", "Cennik Bedrock Finder"],
+  ["cennik-boty", "Cennik boty"],
+  ["cennik-taktyki", "Cennik taktyki"],
+  ["cennik-mody", "Cennik mody"],
+  ["sprzedaj-itemy", "Sprzedaj itemy"],
+  ["bonusy-klientow", "Bonusy klientów"],
+  ["nagrody-za-zaproszenia", "Nagrody za zaproszenia"],
+];
+
+const PANEL_CATEGORIES = [
+  { name: "Cenniki", value: "cenniki" },
+  { name: "Klient i nagrody", value: "klient" },
+  { name: "Serwer i tickety", value: "serwer" },
+  { name: "Sprzedawca i kalkulator", value: "sprzedawca" },
+];
+
 const SENDABLE_PANELS = [
   { name: "Ticketowy (ticketpanel)", value: "ticketowy", handler: handleTicketPanelCommand },
   { name: "Panel klienta", value: "panel-klienta", handler: handlePanelKlientaCommand },
@@ -5064,7 +5086,18 @@ const SENDABLE_PANELS = [
   { name: "Legit checki", value: "legit-checki", send: (interaction) => sendLegitCheckInfoMessage(interaction.channel) },
   { name: "Rozliczenia sprzedawców", value: "rozliczenia", payload: (interaction) => buildRozliczeniaPanelPayload(interaction.guildId) },
   { name: "Regulamin", value: "regulamin", send: sendSavedRegulationPanel },
-];
+  ...IMPORTED_PANEL_NAMES.map(([file, name]) => ({
+    name, value: name.toLocaleLowerCase("pl-PL"), send: (interaction) => sendImportedPanel(interaction, file),
+  })),
+].map((panel) => ({ ...panel, category: panel.name.startsWith("Cennik ") ? "cenniki"
+  : ["ticketowy", "weryfikacja", "regulamin", "legit-checki"].includes(panel.value) ? "serwer"
+  : ["ustaw-dane", "rozliczenia", "kalkulator"].includes(panel.value) ? "sprzedawca" : "klient" }));
+
+function getPanelAutocompleteChoices(category, query = "") {
+  const text = query.toLocaleLowerCase("pl-PL").trim();
+  return SENDABLE_PANELS.filter((panel) => panel.category === category && panel.name.toLocaleLowerCase("pl-PL").includes(text))
+    .slice(0, 25).map(({ name, value }) => ({ name, value }));
+}
 
 const INVITE_COUNTER_CHOICES = [
   { name: "Dodatkowe — ręcznie przyznane zaproszenia", value: "dodatkowe" },
@@ -5104,11 +5137,13 @@ const commands = [
     .setDescription("Wyślij gotowy panel na bieżący kanał")
     .setDMPermission(false)
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .addStringOption((option) => option.setName("kategoria").setDescription("Wybierz grupę paneli")
+      .setRequired(true).addChoices(...PANEL_CATEGORIES))
     .addStringOption((option) => option
       .setName("panel")
       .setDescription("Wybierz panel do wysłania")
       .setRequired(true)
-      .addChoices(...SENDABLE_PANELS.map(({ name, value }) => ({ name, value }))))
+      .setAutocomplete(true))
     .toJSON(),
   new SlashCommandBuilder()
     .setName("cennik")
@@ -7332,6 +7367,17 @@ async function finishUnansweredChatCommand(interaction, completion, reason) {
 }
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isAutocomplete()) {
+    try {
+      const focused = interaction.options.getFocused(true);
+      const choices = interaction.commandName === "panel-wyslij" && focused.name === "panel"
+        ? getPanelAutocompleteChoices(interaction.options.getString("kategoria"), String(focused.value || "")) : [];
+      await interaction.respond(choices);
+    } catch (error) {
+      console.error("[panel-wyslij] Błąd podpowiedzi:", error);
+    }
+    return;
+  }
   const startedAt = Date.now();
   const shouldTrackResponse = Boolean(interaction.isRepliable?.());
   if (shouldTrackResponse) setInteractionDiagnostic(interaction, "started");
@@ -17264,6 +17310,10 @@ async function handlePanelWyslijCommand(interaction) {
     await respond("> `❌` × Nieznany panel. Wybierz panel z listy komendy.");
     return;
   }
+  if (selected.category !== interaction.options.getString("kategoria")) {
+    await respond("> `❌` × Wybierz panel z wybranej kategorii. Po zmianie kategorii wybierz panel ponownie.");
+    return;
+  }
   try {
     if (selected.handler) {
       await selected.handler(interaction);
@@ -17277,6 +17327,63 @@ async function handlePanelWyslijCommand(interaction) {
     console.error("[panel-wyslij] Nie udało się wysłać panelu:", error);
     await respond("> `❌` × Nie udało się wysłać panelu. Sprawdź uprawnienia bota do kanału.");
   }
+}
+
+function cleanImportedPanelComponent(component) {
+  const fields = ["type", "accent_color", "spoiler", "content", "spacing", "divider",
+    "custom_id", "style", "label", "emoji", "url", "disabled", "placeholder",
+    "min_values", "max_values", "options"];
+  const result = Object.fromEntries(fields.filter((key) => component[key] !== undefined)
+    .map((key) => [key, component[key]]));
+  if (component.components) result.components = component.components.map(cleanImportedPanelComponent);
+  if (component.items) result.items = component.items.map((item) => ({
+    media: { url: item.media.url }, ...(item.description ? { description: item.description } : {}), spoiler: !!item.spoiler,
+  }));
+  return result;
+}
+
+async function sendImportedPanel(interaction, file) {
+  const preset = JSON.parse(fs.readFileSync(path.join(__dirname, "panel-presets", `${file}.json`), "utf8"));
+  if (preset.format !== "newshop-panel" || preset.version !== 1 || !preset.state) throw new Error("Niepoprawny zapis panelu");
+  const components = preset.message.components.map(cleanImportedPanelComponent);
+  // Refresh signed media links from the original Discord message when available.
+  if (JSON.stringify(components).includes('"media"')) {
+    const sourceChannel = await interaction.guild.channels.fetch(preset.source.channelId).catch(() => null);
+    const sourceMessage = await sourceChannel?.messages?.fetch(preset.source.messageId).catch(() => null);
+    if (sourceMessage) {
+      const freshUrls = new Map();
+      const collect = (node) => {
+        if (node.media?.url) freshUrls.set(new URL(node.media.url).pathname, node.media.url);
+        for (const child of node.components || []) collect(child);
+        for (const item of node.items || []) collect(item);
+      };
+      for (const component of sourceMessage.components) collect(getSerializableMessageComponent(component));
+      const refresh = (node) => {
+        if (node.media?.url) node.media.url = freshUrls.get(new URL(node.media.url).pathname) || node.media.url;
+        for (const child of node.components || []) refresh(child);
+        for (const item of node.items || []) refresh(item);
+      };
+      components.forEach(refresh);
+    }
+  }
+  const state = { ...JSON.parse(JSON.stringify(preset.state)),
+    ownerId: interaction.user.id, guildId: interaction.guildId, channelId: interaction.channelId,
+    messageId: null, persistPanel: true };
+  const mediaUrls = [];
+  const rememberMedia = (node) => {
+    if (node.media?.url) mediaUrls.push(node.media.url);
+    for (const child of node.components || []) rememberMedia(child);
+    for (const item of node.items || []) rememberMedia(item);
+  };
+  components.forEach(rememberMedia);
+  state.mediaUrls = mediaUrls;
+  const sent = await interaction.channel.send({
+    components, flags: MessageFlags.IsComponentsV2, allowedMentions: { parse: [] },
+  });
+  state.messageId = sent.id;
+  embedTestStates.set(sent.id, state);
+  if (isRegulationEmbedState(state)) regulationPanels.set(sent.id, cloneRegulationPanelState(state));
+  scheduleSavePersistentState(true);
 }
 
 async function sendSavedRegulationPanel(interaction) {

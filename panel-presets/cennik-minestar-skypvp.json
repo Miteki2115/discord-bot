@@ -1,0 +1,131 @@
+{
+  "format": "newshop-panel",
+  "version": 1,
+  "name": "cennik-minestar-skypvp",
+  "exportedAt": "2026-10-04T18:13:00.587Z",
+  "source": {
+    "guildId": "1350446732365926491",
+    "channelId": "1535354979395833907",
+    "messageId": "1535355197419688087"
+  },
+  "state": {
+    "accentColorKey": "blue",
+    "accentColor": 43775,
+    "headerBadge": "",
+    "headerNote": "",
+    "title": "",
+    "cashSectionTitle": "",
+    "cashBody": "```🛒 New Shop × MINESTAR SKYPVP```\n--\n**ITEMY**\n-# zakupione itemy nadawane są na spawnie przez /wymiana\n### <a:arrowwhite:1491476759290449984> <:kasa_3:1494407929145593887>  `2,5 odłamki ➜ 1 ZŁ`",
+    "itemsSectionTitle": "WALUTA SERWEROWA:",
+    "itemsBody": "-# do ustalania na tickecie, zależy od ekonomi.",
+    "extraSectionTitle": "",
+    "extraSectionBody": "",
+    "extraSectionTwoTitle": "",
+    "extraSectionTwoBody": "",
+    "mediaUrls": [],
+    "buttonOneLabel": "🛒︲Zakup",
+    "buttonOneEmoji": "",
+    "buttonOneAction": "zakup",
+    "buttonOneUrl": null,
+    "buttonTwoLabel": "🔢︲Ile dostane?",
+    "buttonTwoEmoji": "",
+    "buttonTwoAction": "kalkulator",
+    "buttonTwoUrl": null,
+    "buttonThreeLabel": "💳︲Metody płatności",
+    "buttonThreeEmoji": "",
+    "buttonThreeAction": "link",
+    "buttonThreeUrl": "https://discord.com/channels/1350446732365926491/1449159489138720965"
+  },
+  "message": {
+    "content": "",
+    "embeds": [],
+    "components": [
+      {
+        "type": 17,
+        "id": 1,
+        "accent_color": 43775,
+        "spoiler": false,
+        "components": [
+          {
+            "type": 10,
+            "id": 2,
+            "content": "```🛒 New Shop × MINESTAR SKYPVP```"
+          },
+          {
+            "type": 14,
+            "id": 3,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 4,
+            "content": "**ITEMY**\n-# zakupione itemy nadawane są na spawnie przez /wymiana\n### <a:arrowwhite:1491476759290449984> <:kasa_3:1494407929145593887>  `2,5 odłamki ➜ 1 ZŁ`"
+          },
+          {
+            "type": 14,
+            "id": 5,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 6,
+            "content": "**WALUTA SERWEROWA:**"
+          },
+          {
+            "type": 10,
+            "id": 7,
+            "content": "-# do ustalania na tickecie, zależy od ekonomi."
+          },
+          {
+            "type": 14,
+            "id": 8,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 1,
+            "id": 9,
+            "components": [
+              {
+                "type": 2,
+                "id": 10,
+                "custom_id": "embedtest_buy_open_zakup",
+                "style": 2,
+                "label": "🛒︲Zakup"
+              },
+              {
+                "type": 2,
+                "id": 11,
+                "custom_id": "embedtest_buy_open_kalkulator",
+                "style": 2,
+                "label": "🔢︲Ile dostane?"
+              },
+              {
+                "type": 2,
+                "id": 12,
+                "style": 5,
+                "label": "💳︲Metody płatności",
+                "url": "https://discord.com/channels/1350446732365926491/1449159489138720965"
+              }
+            ]
+          },
+          {
+            "type": 14,
+            "id": 13,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 14,
+            "content": "-# <:NewShop:1502672633026707667> © 2026 New Shop"
+          }
+        ]
+      }
+    ],
+    "flags": 32768,
+    "attachments": []
+  }
+}

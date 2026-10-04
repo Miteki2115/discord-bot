@@ -1,0 +1,119 @@
+{
+  "format": "newshop-panel",
+  "version": 1,
+  "name": "cennik-bedrock-finder",
+  "exportedAt": "2026-10-04T18:14:04.071Z",
+  "source": {
+    "guildId": "1350446732365926491",
+    "channelId": "1526639152244985856",
+    "messageId": "1526639498648354986"
+  },
+  "state": {
+    "accentColorKey": "blue",
+    "accentColor": 43775,
+    "headerBadge": "",
+    "headerNote": "",
+    "title": "",
+    "cashSectionTitle": "",
+    "cashBody": "```🛒 New Shop × BEDROCK FINDER```\n--\n**Cena Moda:**\n-# Wybierz najwygodniejszą dla siebie formę płatności!\n### <a:arrowwhite:1491476759290449984> :kasa_3:  `20zl` **/** `300k` **/** `10 zaproszeń`",
+    "itemsSectionTitle": "",
+    "itemsBody": "**Opis:**\n> Mod bedrock finder polega na znajdywaniu kratek \n> bedrocka po wyznaczonym przez ciebie wzorze.",
+    "extraSectionTitle": "",
+    "extraSectionBody": "",
+    "extraSectionTwoTitle": "",
+    "extraSectionTwoBody": "",
+    "mediaUrls": [],
+    "buttonOneLabel": "",
+    "buttonOneEmoji": "",
+    "buttonOneAction": "",
+    "buttonOneUrl": null,
+    "buttonTwoLabel": "🛒︲Zakup",
+    "buttonTwoEmoji": "",
+    "buttonTwoAction": "zakup_moda",
+    "buttonTwoUrl": null,
+    "buttonThreeLabel": "💳︲Metody płatności",
+    "buttonThreeEmoji": "",
+    "buttonThreeAction": "link",
+    "buttonThreeUrl": "https://discord.com/channels/1350446732365926491/1449159489138720965"
+  },
+  "message": {
+    "content": "",
+    "embeds": [],
+    "components": [
+      {
+        "type": 17,
+        "id": 1,
+        "accent_color": 43775,
+        "spoiler": false,
+        "components": [
+          {
+            "type": 10,
+            "id": 2,
+            "content": "```🛒 New Shop × BEDROCK FINDER```"
+          },
+          {
+            "type": 14,
+            "id": 3,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 4,
+            "content": "**Cena Moda:**\n-# Wybierz najwygodniejszą dla siebie formę płatności!\n### <a:arrowwhite:1491476759290449984> <:kasa_3:1494407929145593887>  `20zl` **/** `300k` **/** `10 zaproszeń`"
+          },
+          {
+            "type": 14,
+            "id": 5,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 6,
+            "content": "**Opis:**\n> Mod bedrock finder polega na znajdywaniu kratek \n> bedrocka po wyznaczonym przez ciebie wzorze."
+          },
+          {
+            "type": 14,
+            "id": 7,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 1,
+            "id": 8,
+            "components": [
+              {
+                "type": 2,
+                "id": 9,
+                "custom_id": "embedtest_buy_open_zakup_moda",
+                "style": 2,
+                "label": "🛒︲Zakup"
+              },
+              {
+                "type": 2,
+                "id": 10,
+                "style": 5,
+                "label": "💳︲Metody płatności",
+                "url": "https://discord.com/channels/1350446732365926491/1449159489138720965"
+              }
+            ]
+          },
+          {
+            "type": 14,
+            "id": 11,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 12,
+            "content": "-# <:NewShop:1502672633026707667> © 2026 New Shop"
+          }
+        ]
+      }
+    ],
+    "flags": 32768,
+    "attachments": []
+  }
+}

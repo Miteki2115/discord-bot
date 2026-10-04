@@ -1,0 +1,119 @@
+{
+  "format": "newshop-panel",
+  "version": 1,
+  "name": "nagrody za zaproszenia",
+  "exportedAt": "2026-10-04T18:18:46.605Z",
+  "source": {
+    "guildId": "1350446732365926491",
+    "channelId": "1449159372293935104",
+    "messageId": "1502774422317305877"
+  },
+  "state": {
+    "accentColorKey": "blue",
+    "accentColor": 43775,
+    "headerBadge": "",
+    "headerNote": "",
+    "title": "",
+    "cashSectionTitle": "",
+    "cashBody": "```🎁 New Shop × NAGRODY ZA ZAPROSZENIA```\n--\n### <:anarchia_gg:1469444521308852324> ANARCHIA LIFESTEAL\n<a:arrowwhite:1491476759290449984> 5 zaproszeń ➔ __100k__ <:kasa_2:1476700165082710178>\n<a:arrowwhite:1491476759290449984> 10 zaproszeń ➔ __250k__ <:kasa_2:1476700165082710178>\n\n--\n\n### <:anarchia_gg:1469444521308852324> ANARCHIA BOXPVP\n<a:arrowwhite:1491476759290449984> 5 zaproszeń ➔ __80k$__ <:kasa_2:1476700165082710178>\n<a:arrowwhite:1491476759290449984> 10 zaproszeń ➔ __160k$__ <:kasa_2:1476700165082710178>",
+    "itemsSectionTitle": "",
+    "itemsBody": "",
+    "extraSectionTitle": "",
+    "extraSectionBody": "",
+    "extraSectionTwoTitle": "",
+    "extraSectionTwoBody": "",
+    "mediaUrls": [],
+    "buttonOneLabel": "🎁︲Odbierz nagrodę",
+    "buttonOneEmoji": "",
+    "buttonOneAction": "odbior",
+    "buttonOneUrl": null,
+    "buttonTwoLabel": "📨︲Sprawdź zaproszenia",
+    "buttonTwoEmoji": "",
+    "buttonTwoAction": "link",
+    "buttonTwoUrl": "https://discord.com/channels/1350446732365926491/1449159417445482566",
+    "buttonThreeLabel": "",
+    "buttonThreeEmoji": "",
+    "buttonThreeAction": "",
+    "buttonThreeUrl": null
+  },
+  "message": {
+    "content": "",
+    "embeds": [],
+    "components": [
+      {
+        "type": 17,
+        "id": 1,
+        "accent_color": 43775,
+        "spoiler": false,
+        "components": [
+          {
+            "type": 10,
+            "id": 2,
+            "content": "```🎁 New Shop × NAGRODY ZA ZAPROSZENIA```"
+          },
+          {
+            "type": 14,
+            "id": 3,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 4,
+            "content": "### <:anarchia_gg:1469444521308852324> ANARCHIA LIFESTEAL\n<a:arrowwhite:1491476759290449984> 5 zaproszeń ➔ __100k__ <:kasa_2:1476700165082710178>\n<a:arrowwhite:1491476759290449984> 10 zaproszeń ➔ __250k__ <:kasa_2:1476700165082710178>"
+          },
+          {
+            "type": 14,
+            "id": 5,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 6,
+            "content": "### <:anarchia_gg:1469444521308852324> ANARCHIA BOXPVP\n<a:arrowwhite:1491476759290449984> 5 zaproszeń ➔ __80k$__ <:kasa_2:1476700165082710178>\n<a:arrowwhite:1491476759290449984> 10 zaproszeń ➔ __160k$__ <:kasa_2:1476700165082710178>"
+          },
+          {
+            "type": 14,
+            "id": 7,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 1,
+            "id": 8,
+            "components": [
+              {
+                "type": 2,
+                "id": 9,
+                "custom_id": "embedtest_buy_open_odbior",
+                "style": 2,
+                "label": "🎁︲Odbierz nagrodę"
+              },
+              {
+                "type": 2,
+                "id": 10,
+                "style": 5,
+                "label": "📨︲Sprawdź zaproszenia",
+                "url": "https://discord.com/channels/1350446732365926491/1449159417445482566"
+              }
+            ]
+          },
+          {
+            "type": 14,
+            "id": 11,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 12,
+            "content": "-# <:NewShop:1502672633026707667> © 2026 New Shop"
+          }
+        ]
+      }
+    ],
+    "flags": 32768,
+    "attachments": []
+  }
+}

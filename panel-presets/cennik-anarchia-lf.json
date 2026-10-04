@@ -1,0 +1,130 @@
+{
+  "format": "newshop-panel",
+  "version": 1,
+  "name": "cennik-anarchia-lf",
+  "exportedAt": "2026-10-04T18:11:48.669Z",
+  "source": {
+    "guildId": "1350446732365926491",
+    "channelId": "1449162505518579883",
+    "messageId": "1502804269500465242"
+  },
+  "state": {
+    "accentColorKey": "blue",
+    "accentColor": 43775,
+    "headerBadge": "",
+    "headerNote": "",
+    "title": "",
+    "cashSectionTitle": "",
+    "cashBody": "```🛒 New Shop × ANARCHIA LF```\n--\n**WALUTA SERWEROWA:**\n-# zakupiona waluta wysyłana jest na /gift\n### <a:arrowwhite:1491476759290449984> <:kasa_3:1494407929145593887>  `10,5k$ ➜ 1 ZŁ`\n### :arrowwhite: :kasa_3:  `11k$ ➜ 1 ZŁ` (powyżej 50zł)",
+    "itemsSectionTitle": "ITEMY:",
+    "itemsBody": "-# Każdy item przeliczany jest z cennika u góry np. Item o wartości 1MLN = 90zł",
+    "extraSectionTitle": "",
+    "extraSectionBody": "",
+    "extraSectionTwoTitle": "",
+    "extraSectionTwoBody": "",
+    "mediaUrls": [],
+    "buttonOneLabel": "🛒︲Zakup",
+    "buttonOneEmoji": "",
+    "buttonOneAction": "zakup",
+    "buttonOneUrl": null,
+    "buttonTwoLabel": "🔢︲Ile dostane?",
+    "buttonTwoEmoji": "",
+    "buttonTwoAction": "kalkulator",
+    "buttonTwoUrl": null,
+    "buttonThreeLabel": "💳︲Metody płatności",
+    "buttonThreeAction": "link",
+    "buttonThreeUrl": "https://discord.com/channels/1350446732365926491/1449159489138720965"
+  },
+  "message": {
+    "content": "",
+    "embeds": [],
+    "components": [
+      {
+        "type": 17,
+        "id": 1,
+        "accent_color": 43775,
+        "spoiler": false,
+        "components": [
+          {
+            "type": 10,
+            "id": 2,
+            "content": "```🛒 New Shop × ANARCHIA LF```"
+          },
+          {
+            "type": 14,
+            "id": 3,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 4,
+            "content": "**WALUTA SERWEROWA:**\n-# zakupiona waluta wysyłana jest na /gift\n### <a:arrowwhite:1491476759290449984> <:kasa_3:1494407929145593887>  `10,5k$ ➜ 1 ZŁ`\n### <a:arrowwhite:1491476759290449984> <:kasa_3:1494407929145593887>  `11k$ ➜ 1 ZŁ` (powyżej 50zł)"
+          },
+          {
+            "type": 14,
+            "id": 5,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 6,
+            "content": "**ITEMY:**"
+          },
+          {
+            "type": 10,
+            "id": 7,
+            "content": "-# Każdy item przeliczany jest z cennika u góry np. Item o wartości 1MLN = 90zł"
+          },
+          {
+            "type": 14,
+            "id": 8,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 1,
+            "id": 9,
+            "components": [
+              {
+                "type": 2,
+                "id": 10,
+                "custom_id": "embedtest_buy_open_zakup",
+                "style": 2,
+                "label": "🛒︲Zakup"
+              },
+              {
+                "type": 2,
+                "id": 11,
+                "custom_id": "embedtest_buy_open_kalkulator",
+                "style": 2,
+                "label": "🔢︲Ile dostane?"
+              },
+              {
+                "type": 2,
+                "id": 12,
+                "style": 5,
+                "label": "💳︲Metody płatności",
+                "url": "https://discord.com/channels/1350446732365926491/1449159489138720965"
+              }
+            ]
+          },
+          {
+            "type": 14,
+            "id": 13,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 14,
+            "content": "-# <:NewShop:1502672633026707667> © 2026 New Shop"
+          }
+        ]
+      }
+    ],
+    "flags": 32768,
+    "attachments": []
+  }
+}

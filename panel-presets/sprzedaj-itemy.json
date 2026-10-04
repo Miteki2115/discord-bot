@@ -1,0 +1,141 @@
+{
+  "format": "newshop-panel",
+  "version": 1,
+  "name": "sprzedaj itemy",
+  "exportedAt": "2026-10-04T18:16:51.763Z",
+  "source": {
+    "guildId": "1350446732365926491",
+    "channelId": "1449159450236682431",
+    "messageId": "1502803780482109470"
+  },
+  "state": {
+    "accentColorKey": "blue",
+    "accentColor": 43775,
+    "headerBadge": "",
+    "headerNote": "",
+    "title": "",
+    "cashSectionTitle": "",
+    "cashBody": "```🛒 New Shop × SPRZEDAJ ITEMY```\n--\n### <:anarchia_gg:1469444521308852324> ANARCHIA LIFESTEAL:\n<a:arrowwhite:1491476759290449984> :kasa_3:  100k ➜ **__7zł__**\n<a:arrowwhite:1491476759290449984> :kasa_3:   item o wartości 100k ➜ **__5zł__**\n\n--\n\n### <:anarchia_gg:1469444521308852324> ANARCHIA BOXPVP:\n<a:arrowwhite:1491476759290449984> :kasa_3:  10k ➜ **__1zł__**\n\n--\n\n### <:donutsmp:1489578418432381059> DONUT SMP:\n<a:arrowwhite:1491476759290449984> :kasa_3:  15m ➜ **__1zł__**\n\n--\n\n-# Skupujemy również rzeczy z **__innych serwerów__** i płaciemy za nie ok. **70-40%** z naszego cennika.",
+    "itemsSectionTitle": "",
+    "itemsBody": "",
+    "extraSectionTitle": "",
+    "extraSectionBody": "",
+    "extraSectionTwoTitle": "",
+    "extraSectionTwoBody": "",
+    "mediaUrls": [],
+    "buttonOneLabel": "🛒︲Sprzedaj",
+    "buttonOneEmoji": "",
+    "buttonOneAction": "sprzedaz",
+    "buttonOneUrl": null,
+    "buttonTwoLabel": "💳︲Metody wypłat",
+    "buttonTwoEmoji": "",
+    "buttonTwoAction": "link",
+    "buttonTwoUrl": "https://discord.com/channels/1350446732365926491/1449159489138720965",
+    "buttonThreeLabel": "",
+    "buttonThreeEmoji": "",
+    "buttonThreeAction": "",
+    "buttonThreeUrl": null
+  },
+  "message": {
+    "content": "",
+    "embeds": [],
+    "components": [
+      {
+        "type": 17,
+        "id": 1,
+        "accent_color": 43775,
+        "spoiler": false,
+        "components": [
+          {
+            "type": 10,
+            "id": 2,
+            "content": "```🛒 New Shop × SPRZEDAJ ITEMY```"
+          },
+          {
+            "type": 14,
+            "id": 3,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 4,
+            "content": "### <:anarchia_gg:1469444521308852324> ANARCHIA LIFESTEAL:\n<a:arrowwhite:1491476759290449984> <:kasa_3:1494407929145593887>  100k ➜ **__7zł__**\n<a:arrowwhite:1491476759290449984> <:kasa_3:1494407929145593887>   item o wartości 100k ➜ **__5zł__**"
+          },
+          {
+            "type": 14,
+            "id": 5,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 6,
+            "content": "### <:anarchia_gg:1469444521308852324> ANARCHIA BOXPVP:\n<a:arrowwhite:1491476759290449984> <:kasa_3:1494407929145593887>  10k ➜ **__1zł__**"
+          },
+          {
+            "type": 14,
+            "id": 7,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 8,
+            "content": "### <:donutsmp:1489578418432381059> DONUT SMP:\n<a:arrowwhite:1491476759290449984> <:kasa_3:1494407929145593887>  15m ➜ **__1zł__**"
+          },
+          {
+            "type": 14,
+            "id": 9,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 10,
+            "content": "-# Skupujemy również rzeczy z **__innych serwerów__** i płaciemy za nie ok. **70-40%** z naszego cennika."
+          },
+          {
+            "type": 14,
+            "id": 11,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 1,
+            "id": 12,
+            "components": [
+              {
+                "type": 2,
+                "id": 13,
+                "custom_id": "embedtest_buy_open_sprzedaz",
+                "style": 2,
+                "label": "🛒︲Sprzedaj"
+              },
+              {
+                "type": 2,
+                "id": 14,
+                "style": 5,
+                "label": "💳︲Metody wypłat",
+                "url": "https://discord.com/channels/1350446732365926491/1449159489138720965"
+              }
+            ]
+          },
+          {
+            "type": 14,
+            "id": 15,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 16,
+            "content": "-# <:NewShop:1502672633026707667> © 2026 New Shop"
+          }
+        ]
+      }
+    ],
+    "flags": 32768,
+    "attachments": []
+  }
+}
