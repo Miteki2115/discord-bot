@@ -5079,31 +5079,22 @@ function buildInviteStatsCommand() {
     .setDescription("Liczniki zaproszeń: podgląd i zmiany (tylko właściciel serwera)")
     .setDMPermission(false)
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addSubcommand((sub) => sub.setName("pokaz").setDescription("Pokaż wszystkie liczniki i sumę do nagród")
-      .addUserOption((o) => o.setName("osoba").setDescription("Czyje statystyki pokazać").setRequired(true)));
-  for (const [action, description] of [
-    ["dodaj", "Dodaj podaną liczbę do wybranego licznika"],
-    ["odejmij", "Odejmij podaną liczbę z wybranego licznika"],
-    ["ustaw", "Zastąp wybrany licznik podaną wartością"],
-    ["wyzeruj", "Wyzeruj tylko wybrany licznik"],
-  ]) {
-    command.addSubcommand((sub) => {
-      sub.setName(action).setDescription(description)
-        .addUserOption((o) => o.setName("osoba").setDescription("Użytkownik, którego licznik zmieniasz").setRequired(true))
-        .addStringOption((o) => o.setName("licznik").setDescription("Który licznik zmienić").setRequired(true).addChoices(...INVITE_COUNTER_CHOICES));
-      if (action !== "wyzeruj") sub.addIntegerOption((o) => o.setName("liczba")
-        .setDescription(action === "ustaw" ? "Nowa wartość licznika (0 oznacza zero)" : "O ile zmienić licznik")
-        .setRequired(true).setMinValue(action === "ustaw" ? 0 : 1).setMaxValue(1000000));
-      return sub;
-    });
-  }
-  command.addSubcommand((sub) => sub.setName("odblokuj-nagrody")
-    .setDescription("Zezwól na ponowny odbiór nagród 5 i 10; usuwa istniejące kody nagród")
-    .addUserOption((o) => o.setName("osoba").setDescription("Komu zresetować odebrane nagrody").setRequired(true)));
-  command.addSubcommand((sub) => sub.setName("nagroda-kwota").setDescription("Zmień wartość nagrody za określony próg")
-    .addIntegerOption((o) => o.setName("prog").setDescription("Próg zaproszeń").setRequired(true)
+    .addStringOption((o) => o.setName("akcja").setDescription("Co chcesz zrobić?").setRequired(true)
+      .addChoices(
+        { name: "Pokaż statystyki", value: "pokaz" },
+        { name: "Dodaj zaproszenia", value: "dodaj" },
+        { name: "Odejmij zaproszenia", value: "odejmij" },
+        { name: "Ustaw licznik", value: "ustaw" },
+        { name: "Wyzeruj licznik", value: "wyzeruj" },
+        { name: "Odblokuj ponowny odbiór nagród", value: "odblokuj-nagrody" },
+        { name: "Zmień kwotę nagrody", value: "nagroda-kwota" }))
+    .addUserOption((o) => o.setName("osoba").setDescription("Dla podglądu, zmiany licznika lub odblokowania nagród"))
+    .addStringOption((o) => o.setName("licznik").setDescription("Dla dodaj, odejmij, ustaw i wyzeruj").addChoices(...INVITE_COUNTER_CHOICES))
+    .addIntegerOption((o) => o.setName("liczba").setDescription("Dla dodaj/odejmij: ile; dla ustaw: nowa wartość")
+      .setMinValue(0).setMaxValue(1000000))
+    .addIntegerOption((o) => o.setName("prog").setDescription("Tylko przy zmianie kwoty nagrody")
       .addChoices({ name: "5 zaproszeń", value: 5 }, { name: "10 zaproszeń", value: 10 }))
-    .addIntegerOption((o) => o.setName("kwota").setDescription("Nowa kwota nagrody w $ (np. 130000)").setRequired(true).setMinValue(1)));
+    .addIntegerOption((o) => o.setName("kwota").setDescription("Tylko przy zmianie nagrody: nowa kwota w $ (np. 130000)").setMinValue(1));
   return command.toJSON();
 }
 
@@ -25958,10 +25949,15 @@ async function handleZaprosieniaStatsCommand(interaction) {
   } catch {
     subcommand = null;
   }
+  subcommand = subcommand || interaction.options.getString("akcja");
 
   if (subcommand === "nagroda-kwota") {
-    const prog = interaction.options.getInteger("prog", true);
-    const kwota = interaction.options.getInteger("kwota", true);
+    const prog = interaction.options.getInteger("prog");
+    const kwota = interaction.options.getInteger("kwota");
+    if (![5, 10].includes(prog) || !Number.isSafeInteger(kwota) || kwota < 1) {
+      await respond({ content: "> `❌` × Przy zmianie nagrody wybierz `prog` (5 lub 10) i podaj `kwota` w $.", flags: [MessageFlags.Ephemeral] });
+      return;
+    }
 
     const milestone = INVITE_REWARD_MILESTONES.find(m => m.threshold === prog);
     if (!milestone) {
@@ -25989,7 +25985,11 @@ async function handleZaprosieniaStatsCommand(interaction) {
   }
 
   if (subcommand === "usunblokade" || subcommand === "odblokuj-nagrody") {
-    const targetUser = interaction.options.getUser(subcommand === "usunblokade" ? "kto" : "osoba", true);
+    const targetUser = interaction.options.getUser(subcommand === "usunblokade" ? "kto" : "osoba");
+    if (!targetUser) {
+      await respond({ content: "> `❌` × Wybierz `osoba`, której chcesz odblokować ponowny odbiór nagród.", flags: [MessageFlags.Ephemeral] });
+      return;
+    }
 
     if (!inviteRewardsGiven.has(guildId)) inviteRewardsGiven.set(guildId, new Map());
     if (!claimedInviteRewardMilestones.has(guildId)) {
