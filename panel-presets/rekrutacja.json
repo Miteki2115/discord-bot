@@ -1,0 +1,123 @@
+{
+  "format": "newshop-panel",
+  "version": 1,
+  "name": "Rekrutacja",
+  "exportedAt": "2026-10-04T18:29:26.427Z",
+  "source": {
+    "guildId": "1350446732365926491",
+    "channelId": "1554196141703172266",
+    "messageId": "1554213983584784531"
+  },
+  "state": {
+    "accentColorKey": "blue",
+    "accentColor": 43775,
+    "headerBadge": "<:anarchia_gg:1469444521308852324>",
+    "headerNote": "",
+    "title": "ANARCHIA LF - CENNIK :jump_dirt:",
+    "cashSectionTitle": "",
+    "cashBody": "```🔎 New Shop × REKRUTACJA```\n\n--\n\n### <a:card:1537186328867770488> Rekrutacja na: <@&1350786945944391733>\n-# Cześć! Poszukujemy **zaangażowanych** i **ogarniętych** osób na rangę **sprzedawca**.\n\n--\n\n### <:bedrock:1526640231531675809> Dostępne limity:\n> <@&1449448705563557918> <a:arrowwhite:1491476759290449984> 60ZŁ\n> <@&1449448702925209651> <a:arrowwhite:1491476759290449984> 150ZŁ\n> <@&1449448686156255333> <a:arrowwhite:1491476759290449984> 250ZŁ\n> <@&1449448860517798061> <a:arrowwhite:1491476759290449984> 400ZŁ\n> <@&1541553589833695393> <a:arrowwhite:1491476759290449984> 600ZŁ\n> <@&1541553994000891984> <a:arrowwhite:1491476759290449984> 800ZŁ\n\n--\n\n### <:kasa_3:1494407929145593887> Prowizje:\n-# Co 7 dni sprzedawca oddaje **10%** ze sprzedaży.",
+    "itemsSectionTitle": "",
+    "itemsBody": "",
+    "extraSectionTitle": "",
+    "extraSectionBody": "",
+    "extraSectionTwoTitle": "",
+    "extraSectionTwoBody": "",
+    "mediaUrls": [],
+    "buttonOneLabel": "📝︲Zostań sprzedawcą",
+    "buttonOneEmoji": "",
+    "buttonOneAction": "zostansprzedawca",
+    "buttonOneUrl": null,
+    "buttonTwoLabel": "Płatności",
+    "buttonTwoEmoji": "💳",
+    "buttonTwoAction": "link",
+    "buttonTwoUrl": "https://discord.com/channels/1350446732365926491/1449159489138720965",
+    "buttonThreeLabel": "",
+    "buttonThreeEmoji": "",
+    "buttonThreeAction": "kalkulator",
+    "buttonThreeUrl": null
+  },
+  "message": {
+    "content": "",
+    "embeds": [],
+    "components": [
+      {
+        "type": 17,
+        "id": 1,
+        "accent_color": 43775,
+        "spoiler": false,
+        "components": [
+          {
+            "type": 10,
+            "id": 2,
+            "content": "```🔎 New Shop × REKRUTACJA```"
+          },
+          {
+            "type": 14,
+            "id": 3,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 4,
+            "content": "### <a:card:1537186328867770488> Rekrutacja na: <@&1350786945944391733>\n-# Cześć! Poszukujemy **zaangażowanych** i **ogarniętych** osób na rangę **sprzedawca**."
+          },
+          {
+            "type": 14,
+            "id": 5,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 6,
+            "content": "### <:bedrock:1526640231531675809> Dostępne limity:\n> <@&1449448705563557918> <a:arrowwhite:1491476759290449984> 60ZŁ\n> <@&1449448702925209651> <a:arrowwhite:1491476759290449984> 150ZŁ\n> <@&1449448686156255333> <a:arrowwhite:1491476759290449984> 250ZŁ\n> <@&1449448860517798061> <a:arrowwhite:1491476759290449984> 400ZŁ\n> <@&1541553589833695393> <a:arrowwhite:1491476759290449984> 600ZŁ\n> <@&1541553994000891984> <a:arrowwhite:1491476759290449984> 800ZŁ"
+          },
+          {
+            "type": 14,
+            "id": 7,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 8,
+            "content": "### <:kasa_3:1494407929145593887> Prowizje:\n-# Co 7 dni sprzedawca oddaje **10%** ze sprzedaży."
+          },
+          {
+            "type": 14,
+            "id": 9,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 1,
+            "id": 10,
+            "components": [
+              {
+                "type": 2,
+                "id": 11,
+                "custom_id": "embedtest_buy_open_zostansprzedawca",
+                "style": 2,
+                "label": "📝︲Zostań sprzedawcą"
+              }
+            ]
+          },
+          {
+            "type": 14,
+            "id": 12,
+            "spacing": 1,
+            "divider": true
+          },
+          {
+            "type": 10,
+            "id": 13,
+            "content": "-# <:NewShop:1502672633026707667> © 2026 New Shop"
+          }
+        ]
+      }
+    ],
+    "flags": 32768,
+    "attachments": []
+  }
+}

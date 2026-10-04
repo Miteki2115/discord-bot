@@ -589,7 +589,7 @@ const sellerWarnings = new Map(); // `${guildId}:${userId}` -> number
 const sellerSavedLimitRoles = new Map(); // `${guildId}:${userId}` -> Array<string> of roleIds
 const sellerWarnMessages = new Map(); // `${guildId}:${userId}` -> Array<{ pingMessageId, embedMessageId, channelId }>
 const OSTRZEZENIA_CHANNEL_ID = "1457447223452237834";
-const embedTestStates = new Map(); // messageId -> editable preview state for /embedtest
+const embedTestStates = new Map(); // messageId -> editable preview state for /embed-2
 const regulationPanels = new Map(); // messageId -> persisted regulation panel state
 const pendingEmbedTestPublish = new Map(); // guildId:userId -> { messageId, sourceChannelId, expiresAt }
 const embedTestEmojiCacheReady = new Map(); // guildId -> timestamp ostatniego fetch emoji
@@ -5065,6 +5065,7 @@ const IMPORTED_PANEL_NAMES = [
   ["sprzedaj-itemy", "Sprzedaj itemy"],
   ["bonusy-klientow", "Bonusy klientów"],
   ["nagrody-za-zaproszenia", "Nagrody za zaproszenia"],
+  ["rekrutacja", "Rekrutacja"],
 ];
 
 const PANEL_CATEGORIES = [
@@ -5090,7 +5091,7 @@ const SENDABLE_PANELS = [
     name, value: name.toLocaleLowerCase("pl-PL"), send: (interaction) => sendImportedPanel(interaction, file),
   })),
 ].map((panel) => ({ ...panel, category: panel.name.startsWith("Cennik ") ? "cenniki"
-  : ["ticketowy", "weryfikacja", "regulamin", "legit-checki"].includes(panel.value) ? "serwer"
+  : ["ticketowy", "weryfikacja", "regulamin", "legit-checki", "rekrutacja"].includes(panel.value) ? "serwer"
   : ["ustaw-dane", "rozliczenia", "kalkulator"].includes(panel.value) ? "sprzedawca" : "klient" }));
 
 function getPanelAutocompleteChoices(category, query = "") {
@@ -5709,7 +5710,7 @@ const commands = [
     )
     .toJSON(),
   new SlashCommandBuilder()
-    .setName("embedtest")
+    .setName("embed-2")
     .setDescription("Wyślij testowy embed w stylu cennika i edytuj go przyciskami")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
     .addChannelOption((o) =>
@@ -5730,7 +5731,7 @@ const commands = [
     .toJSON(),
   new SlashCommandBuilder()
     .setName("regulaminwyslij")
-    .setDescription("Wyślij panel regulaminu z przyciskiem i edytorem jak w /embedtest")
+    .setDescription("Wyślij panel regulaminu z przyciskiem i edytorem jak w /embed-2")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
     .addChannelOption((o) =>
       o
@@ -5749,7 +5750,7 @@ const commands = [
     )
     .toJSON(),
   new SlashCommandBuilder()
-    .setName("sprawdzembedtest")
+    .setName("sprawdz-embed-2")
     .setDescription("Podepnij istniejący embed testowy na kanale i edytuj go dalej")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
     .addChannelOption((o) =>
@@ -5763,22 +5764,13 @@ const commands = [
     )
     .toJSON(),
   new SlashCommandBuilder()
-    .setName("embedtest-zapisz")
-    .setDescription("Pobierz panel embedtest jako JSON do przesłania i dodania do /panel-wyslij")
-    .setDMPermission(false)
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
-    .addStringOption((o) => o.setName("nazwa").setDescription("Nazwa panelu, np. cennik-anarchia").setRequired(true).setMaxLength(80))
-    .addChannelOption((o) => o.setName("kanal").setDescription("Kanał z panelem; domyślnie obecny kanał").addChannelTypes(ChannelType.GuildText))
-    .addStringOption((o) => o.setName("wiadomosc").setDescription("ID konkretnej wiadomości; bez tego zapisze ostatni panel").setMaxLength(25))
-    .toJSON(),
-  new SlashCommandBuilder()
     .setName("zaaktualizuj-film")
-    .setDescription("Podmień film/obraz w najbliższym embedtest na nowy plik")
+    .setDescription("Podmień film/obraz w najbliższym embed /embed-2 na nowy plik")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
     .addChannelOption((o) =>
       o
         .setName("kanal")
-        .setDescription("Kanał z embedtestem. Jeśli nie podasz, użyty zostanie aktualny kanał.")
+        .setDescription("Kanał z embedem /embed-2. Jeśli nie podasz, użyty zostanie aktualny kanał.")
         .setRequired(false)
         .addChannelTypes(ChannelType.GuildText),
     )
@@ -5809,7 +5801,7 @@ const commands = [
     .addChannelOption((o) =>
       o
         .setName("kanal")
-        .setDescription("Kanał z embedtestem. Jeśli nie podasz, użyty zostanie aktualny kanał.")
+        .setDescription("Kanał z embedem /embed-2. Jeśli nie podasz, użyty zostanie aktualny kanał.")
         .setRequired(false)
         .addChannelTypes(ChannelType.GuildText),
     )
@@ -9067,7 +9059,7 @@ async function handleButtonInteraction(interaction) {
 
     if (!state) {
       await interaction.reply({
-        content: "> `❌` × Ta sesja edycji wygasła. Użyj `/embedtest` ponownie.",
+        content: "> `❌` × Ta sesja edycji wygasła. Użyj `/embed-2` ponownie.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -9249,7 +9241,7 @@ async function handleButtonInteraction(interaction) {
 
     if (!state) {
       await interaction.reply({
-        content: "> `❌` × Ta sesja edycji wygasła. Użyj `/embedtest` ponownie.",
+        content: "> `❌` × Ta sesja edycji wygasła. Użyj `/embed-2` ponownie.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -10066,17 +10058,14 @@ async function handleSlashCommand(interaction) {
     case "embed":
       await handleSendMessageCommand(interaction);
       break;
-    case "embedtest":
+    case "embed-2":
       await handleEmbedTestCommand(interaction);
       break;
     case "regulaminwyslij":
       await handleRegulaminWyslijCommand(interaction);
       break;
-    case "sprawdzembedtest":
+    case "sprawdz-embed-2":
       await handleSprawdzEmbedTestCommand(interaction);
-      break;
-    case "embedtest-zapisz":
-      await handleEmbedTestExportCommand(interaction);
       break;
     case "ustaw-tickety-sprzedawcy":
       await handleUstawTicketySprzedawcyCommand(interaction);
@@ -15217,7 +15206,7 @@ async function handleEmbedTestCommand(interaction) {
   if (mediaAttachment && !normalizeEmbedTestAttachment(mediaAttachment)) {
     await interaction.reply({
       content:
-        "> `❌` × Załącznik w `/embedtest` musi być filmikiem, gifem albo obrazem.",
+        "> `❌` × Załącznik w `/embed-2` musi być filmikiem, gifem albo obrazem.",
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -15945,81 +15934,6 @@ async function findLatestLegacyModyPanelMessage(channel) {
   return null;
 }
 
-function buildEmbedTestExport(name, message, state) {
-  const attachments = [...(message.attachments?.values() || [])].map((item) => ({
-    name: item.name, url: item.url, contentType: item.contentType || null,
-  }));
-  const fields = [
-    "variant", "accentColorKey", "accentColor", "headerBadge", "headerNote", "title",
-    "cashSectionTitle", "cashBody", "itemsSectionTitle", "itemsBody",
-    "extraSectionTitle", "extraSectionBody", "extraSectionTwoTitle", "extraSectionTwoBody",
-    "pages", "mediaUrls",
-    ...["One", "Two", "Three"].flatMap((button) =>
-      ["Label", "Emoji", "Action", "Url"].map((field) => `button${button}${field}`)),
-  ];
-  const exportedState = state ? JSON.parse(JSON.stringify(Object.fromEntries(
-    fields.filter((key) => state[key] !== undefined).map((key) => [key, state[key]]),
-  ))) : null;
-  if (exportedState?.mediaUrls) exportedState.mediaUrls = exportedState.mediaUrls.map((url) => {
-    if (!url.startsWith("attachment://")) return url;
-    return attachments.find((item) => item.name === url.slice("attachment://".length))?.url || url;
-  });
-  return {
-    format: "newshop-panel", version: 1, name, exportedAt: new Date().toISOString(),
-    source: { guildId: message.guildId, channelId: message.channelId, messageId: message.id },
-    state: exportedState,
-    message: {
-      content: message.content || "",
-      embeds: message.embeds.map((embed) => embed.toJSON()),
-      components: message.components.map(getSerializableMessageComponent).filter(Boolean),
-      flags: message.flags?.bitfield || 0, attachments,
-    },
-  };
-}
-
-async function handleEmbedTestExportCommand(interaction) {
-  if (!interaction.guild || (interaction.user.id !== interaction.guild.ownerId
-      && !interaction.member?.permissions?.has(PermissionFlagsBits.ManageChannels))) {
-    await interaction.reply({ content: "> `❌` × Eksport paneli wymaga zarządzania kanałami na serwerze.", flags: [MessageFlags.Ephemeral] });
-    return;
-  }
-  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
-  try {
-    const channel = interaction.options.getChannel("kanal") || interaction.channel;
-    if (!channel?.isTextBased() || !channel.messages?.fetch) {
-      await interaction.editReply({ content: "> `❌` × Wybierz kanał tekstowy z panelem." });
-      return;
-    }
-    const id = interaction.options.getString("wiadomosc");
-    if (id && !/^\d{17,20}$/.test(id)) {
-      await interaction.editReply({ content: "> `❌` × Pole `wiadomosc` wymaga ID wiadomości (17–20 cyfr)." });
-      return;
-    }
-    const message = id ? await channel.messages.fetch(id).catch(() => null) : await findLatestEmbedTestMessage(channel);
-    if (!message || message.author?.id !== client.user.id) {
-      await interaction.editReply({ content: "> `❌` × Nie znalazłem panelu bota. Wybierz kanał albo podaj ID konkretnej wiadomości." });
-      return;
-    }
-    const state = embedTestStates.get(message.id) || regulationPanels.get(message.id)
-      || reconstructEmbedTestStateFromMessage(message, interaction.user.id);
-    const name = interaction.options.getString("nazwa", true).trim();
-    if (!name) {
-      await interaction.editReply({ content: "> `❌` × Podaj nazwę panelu." });
-      return;
-    }
-    const data = buildEmbedTestExport(name, message, state);
-    const filename = name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 80) || "panel";
-    await interaction.editReply({
-      content: "> `✅` × Panel zapisany do pliku JSON. Pobierz plik i wyślij go AI z nazwą, pod którą ma trafić do `/panel-wyslij`.",
-      files: [new AttachmentBuilder(Buffer.from(JSON.stringify(data, null, 2), "utf8"), { name: `${filename}.json` })],
-    });
-  } catch (error) {
-    console.error("[embedtest-zapisz] Błąd eksportu:", error);
-    await interaction.editReply({ content: "> `❌` × Nie udało się wyeksportować panelu. Sprawdź dostęp bota do wiadomości." });
-  }
-}
-
 async function handleSprawdzEmbedTestCommand(interaction) {
   if (!interaction.guild) {
     await interaction.reply({
@@ -16385,7 +16299,7 @@ async function handleAktualizacjaEmbedCommand(interaction) {
 
   if (!state) {
     await interaction.reply({
-      content: "> `❌` × Nie znalazłem zapisanego stanu dla tej wiadomości ani treści do zaimportowania. \n> `💡` × Jeśli chcesz nadpisać ten panel nową treścią, użyj najpierw `/embedtest`, stwórz podgląd, a potem tutaj `/aktualizacja-embed` (ale upewnij się, że masz tylko jeden aktywny podgląd).",
+      content: "> `❌` × Nie znalazłem zapisanego stanu dla tej wiadomości ani treści do zaimportowania. \n> `💡` × Jeśli chcesz nadpisać ten panel nową treścią, użyj najpierw `/embed-2`, stwórz podgląd, a potem tutaj `/aktualizacja-embed` (ale upewnij się, że masz tylko jeden aktywny podgląd).",
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -20461,7 +20375,7 @@ async function handleSelectMenu(interaction) {
 
     if (!state) {
       await interaction.reply({
-        content: "> `❌` × Ta sesja edycji wygasła. Użyj `/embedtest` ponownie.",
+        content: "> `❌` × Ta sesja edycji wygasła. Użyj `/embed-2` ponownie.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -20492,7 +20406,7 @@ async function handleSelectMenu(interaction) {
 
     if (!state) {
       await interaction.reply({
-        content: "> `❌` × Ta sesja edycji wygasła. Użyj `/embedtest` ponownie.",
+        content: "> `❌` × Ta sesja edycji wygasła. Użyj `/embed-2` ponownie.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -20515,7 +20429,7 @@ async function handleSelectMenu(interaction) {
     if (!updated) {
       embedTestStates.delete(messageId);
       await interaction.reply({
-        content: "> `❌` × Nie udało się zaktualizować wiadomości. Użyj `/embedtest` ponownie.",
+        content: "> `❌` × Nie udało się zaktualizować wiadomości. Użyj `/embed-2` ponownie.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -22037,7 +21951,7 @@ async function handleModalSubmit(interaction) {
 
     if (!state) {
       await interaction.reply({
-        content: "> `❌` × Ta sesja edycji wygasła. Użyj `/embedtest` ponownie.",
+        content: "> `❌` × Ta sesja edycji wygasła. Użyj `/embed-2` ponownie.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -22069,7 +21983,7 @@ async function handleModalSubmit(interaction) {
     if (!updated) {
       embedTestStates.delete(messageId);
       await interaction.reply({
-        content: "> `❌` × Nie udało się zaktualizować wiadomości. Użyj `/embedtest` ponownie.",
+        content: "> `❌` × Nie udało się zaktualizować wiadomości. Użyj `/embed-2` ponownie.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -22158,7 +22072,7 @@ async function handleModalSubmit(interaction) {
 
       if (!state) {
         await interaction.reply({
-          content: "> `❌` × Ta sesja edycji wygasła. Użyj `/sprawdzembedtest` ponownie.",
+          content: "> `❌` × Ta sesja edycji wygasła. Użyj `/sprawdz-embed-2` ponownie.",
           flags: [MessageFlags.Ephemeral],
         }).catch(() => null);
         return;
@@ -22186,7 +22100,7 @@ async function handleModalSubmit(interaction) {
       if (!updated) {
         embedTestStates.delete(messageId);
         await interaction.reply({
-          content: "> `❌` × Nie udało się zaktualizować wiadomości. Użyj `/sprawdzembedtest` ponownie.",
+          content: "> `❌` × Nie udało się zaktualizować wiadomości. Użyj `/sprawdz-embed-2` ponownie.",
           flags: [MessageFlags.Ephemeral],
         }).catch(() => null);
         return;
@@ -22227,7 +22141,7 @@ async function handleModalSubmit(interaction) {
 
       if (!state) {
         await interaction.reply({
-          content: "> `❌` × Ta sesja edycji wygasła. Użyj `/sprawdzembedtest` ponownie.",
+          content: "> `❌` × Ta sesja edycji wygasła. Użyj `/sprawdz-embed-2` ponownie.",
           flags: [MessageFlags.Ephemeral],
         }).catch(() => null);
         return;
@@ -22274,7 +22188,7 @@ async function handleModalSubmit(interaction) {
       if (!updated) {
         embedTestStates.delete(messageId);
         await interaction.reply({
-          content: "> `❌` × Nie udało się zaktualizować wiadomości. Użyj `/sprawdzembedtest` ponownie.",
+          content: "> `❌` × Nie udało się zaktualizować wiadomości. Użyj `/sprawdz-embed-2` ponownie.",
           flags: [MessageFlags.Ephemeral],
         }).catch(() => null);
         return;
@@ -22309,7 +22223,7 @@ async function handleModalSubmit(interaction) {
 
     if (!state) {
       await interaction.reply({
-        content: "> `❌` × Ta sesja edycji wygasła. Użyj `/embedtest` ponownie.",
+        content: "> `❌` × Ta sesja edycji wygasła. Użyj `/embed-2` ponownie.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -22358,7 +22272,7 @@ async function handleModalSubmit(interaction) {
     if (!updated) {
       embedTestStates.delete(messageId);
       await interaction.reply({
-        content: "> `❌` × Nie udało się zaktualizować wiadomości. Użyj `/embedtest` ponownie.",
+        content: "> `❌` × Nie udało się zaktualizować wiadomości. Użyj `/embed-2` ponownie.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -22383,7 +22297,7 @@ async function handleModalSubmit(interaction) {
 
     if (!state) {
       await interaction.reply({
-        content: "> `❌` × Ta sesja edycji wygasła. Użyj `/embedtest` ponownie.",
+        content: "> `❌` × Ta sesja edycji wygasła. Użyj `/embed-2` ponownie.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -22469,7 +22383,7 @@ async function handleModalSubmit(interaction) {
     if (!updated) {
       embedTestStates.delete(messageId);
       await interaction.reply({
-        content: "> `❌` × Nie udało się zaktualizować wiadomości. Użyj `/embedtest` ponownie.",
+        content: "> `❌` × Nie udało się zaktualizować wiadomości. Użyj `/embed-2` ponownie.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
