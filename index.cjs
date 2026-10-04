@@ -5245,7 +5245,7 @@ const commands = [
     .toJSON(),
   new SlashCommandBuilder()
     .setName("znizka")
-    .setDescription("Wpisz kod rabatowy na ticket (np. /znizka ABC123XYZ0Q)")
+    .setDescription("Wpisz kod rabatowy na tickecie (np. /znizka ABC123XYZ0Q)")
     .setDefaultMemberPermissions(null)
     .addStringOption((option) =>
       option
