@@ -5184,22 +5184,6 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .toJSON(),
   new SlashCommandBuilder()
-    .setName("panelkalkulator")
-    .setDescription("Wyślij panel kalkulatora waluty na kanał")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
-    .toJSON(),
-
-  new SlashCommandBuilder()
-    .setName("ticketpanel")
-    .setDescription("Wyślij TicketPanel na kanał")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
-    .toJSON(),
-  new SlashCommandBuilder()
-    .setName("panel-klienta")
-    .setDescription("Wyślij Panel Klienta na kanał")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
-    .toJSON(),
-  new SlashCommandBuilder()
     .setName("ticket-zakoncz")
     .setDescription("Użyj tej komendy jeżeli będziesz chciał zakończyć ticket (sprzedawca)")
     .setDefaultMemberPermissions(null)
@@ -5474,16 +5458,6 @@ const commands = [
     )
     .toJSON(),
   new SlashCommandBuilder()
-    .setName("panelweryfikacja")
-    .setDescription("Wyślij panel weryfikacji na kanał")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
-    .toJSON(),
-  new SlashCommandBuilder()
-    .setName("panel-dane")
-    .setDescription("Wyślij panel do ustawiania danych sprzedawcy")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
-    .toJSON(),
-  new SlashCommandBuilder()
     .setName("opinia")
     .setDescription("Podziel sie opinią o naszym sklepie!")
     .addIntegerOption((option) =>
@@ -5730,26 +5704,6 @@ const commands = [
     )
     .toJSON(),
   new SlashCommandBuilder()
-    .setName("regulaminwyslij")
-    .setDescription("Wyślij panel regulaminu z przyciskiem i edytorem jak w /embed-2")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
-    .addChannelOption((o) =>
-      o
-        .setName("kanal")
-        .setDescription(
-          "Kanał docelowy (opcjonalnie). Jeśli nie podasz, użyty zostanie aktualny kanał.",
-        )
-        .setRequired(false)
-        .addChannelTypes(ChannelType.GuildText),
-    )
-    .addAttachmentOption((o) =>
-      o
-        .setName("obrazek")
-        .setDescription("Opcjonalny obraz, gif albo video do osadzenia w panelu")
-        .setRequired(false),
-    )
-    .toJSON(),
-  new SlashCommandBuilder()
     .setName("sprawdz-embed-2")
     .setDescription("Podepnij istniejący embed testowy na kanale i edytuj go dalej")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
@@ -5954,11 +5908,6 @@ const commands = [
         .setDescription("Czy rzeczywiście wysłać testowe ghost-pingi na kanały (usunięcie po 4s)")
         .setRequired(false),
     )
-    .toJSON(),
-  new SlashCommandBuilder()
-    .setName("panel-zaproszen")
-    .setDescription("Wyślij panel sprawdzania zaproszeń na wyznaczonym kanale")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
     .toJSON(),
   new SlashCommandBuilder()
     .setName("rozliczenieprowizja")
@@ -9160,7 +9109,7 @@ async function handleButtonInteraction(interaction) {
 
     if (!state || !isRegulationEmbedState(state)) {
       await interaction.reply({
-        content: "> `❌` × Ta sesja edycji wygasła. Użyj `/regulaminwyslij` ponownie.",
+        content: "> `❌` × Ta sesja edycji wygasła. Użyj `/sprawdz-embed-2` ponownie.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -9221,7 +9170,7 @@ async function handleButtonInteraction(interaction) {
       embedTestStates.delete(messageId);
       await interaction.update({
         content:
-          "> `❌` × Nie udało się zaktualizować panelu regulaminu. Użyj `/regulaminwyslij` ponownie.",
+          "> `❌` × Nie udało się zaktualizować panelu regulaminu. Użyj `/sprawdz-embed-2` ponownie.",
         embeds: [],
         components: [],
       });
@@ -9952,10 +9901,6 @@ async function handleSlashCommand(interaction) {
     case "cennik":
       await handleCennikCommand(interaction);
       break;
-    case "panelkalkulator":
-      await handlePanelKalkulatorCommand(interaction);
-      break;
-
     case "help":
       await handleHelpCommand(interaction);
       break;
@@ -10001,23 +9946,11 @@ async function handleSlashCommand(interaction) {
     case "dzienne-lc-ustaw":
       await handleDailyLegitChartTestCommand(interaction);
       break;
-    case "ticketpanel":
-      await handleTicketPanelCommand(interaction);
-      break;
-    case "panel-klienta":
-      await handlePanelKlientaCommand(interaction);
-      break;
     case "zamknij":
       await handleCloseTicketCommand(interaction);
       break;
     case "dodaj":
       await handleAddUserToTicketCommand(interaction);
-      break;
-    case "panelweryfikacja":
-      await handlePanelWeryfikacjaCommand(interaction);
-      break;
-    case "panel-dane":
-      await handlePanelDaneCommand(interaction);
       break;
     case "opinia":
       await handleOpinionCommand(interaction);
@@ -10060,9 +9993,6 @@ async function handleSlashCommand(interaction) {
       break;
     case "embed-2":
       await handleEmbedTestCommand(interaction);
-      break;
-    case "regulaminwyslij":
-      await handleRegulaminWyslijCommand(interaction);
       break;
     case "sprawdz-embed-2":
       await handleSprawdzEmbedTestCommand(interaction);
@@ -10120,9 +10050,6 @@ async function handleSlashCommand(interaction) {
       break;
     case "test-pingi":
       await handleTestPingiCommand(interaction);
-      break;
-    case "panel-zaproszen":
-      await handlePanelZaproszenCommand(interaction);
       break;
     case "statusbota":
       await handleStatusBotaCommand(interaction);
@@ -15275,7 +15202,7 @@ async function handleRegulaminWyslijCommand(interaction) {
   if (mediaAttachment && !normalizeEmbedTestAttachment(mediaAttachment)) {
     await interaction.reply({
       content:
-        "> `❌` × Załącznik w `/regulaminwyslij` musi być obrazem, gifem albo video.",
+        "> `❌` × Załącznik w `/sprawdz-embed-2` musi być obrazem, gifem albo video.",
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -15987,7 +15914,7 @@ async function handleSprawdzEmbedTestCommand(interaction) {
   if (!liveState && !storedRegulationState && isRegulationPanelMessage(foundMessage)) {
     await interaction.reply({
       content:
-        "> `❌` × Znalazłem panel regulaminu, ale bot nie ma zapisanego stanu jego stron. Podepnij go ponownie przez `/regulaminwyslij` albo otwórz aktywną sesję edycji.",
+        "> `❌` × Znalazłem panel regulaminu, ale bot nie ma zapisanego stanu jego stron. Podepnij go ponownie przez `/sprawdz-embed-2` albo otwórz aktywną sesję edycji.",
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -22008,7 +21935,7 @@ async function handleModalSubmit(interaction) {
 
     if (!state || !isRegulationEmbedState(state)) {
       await interaction.reply({
-        content: "> `❌` × Ta sesja edycji wygasła. Użyj `/regulaminwyslij` ponownie.",
+        content: "> `❌` × Ta sesja edycji wygasła. Użyj `/sprawdz-embed-2` ponownie.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -22043,7 +21970,7 @@ async function handleModalSubmit(interaction) {
       embedTestStates.delete(messageId);
       await interaction.reply({
         content:
-          "> `❌` × Nie udało się zaktualizować panelu regulaminu. Użyj `/regulaminwyslij` ponownie.",
+          "> `❌` × Nie udało się zaktualizować panelu regulaminu. Użyj `/sprawdz-embed-2` ponownie.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
