@@ -5187,7 +5187,7 @@ const commands = [
     .toJSON(),
   new SlashCommandBuilder()
     .setName("ticket-zakoncz")
-    .setDescription("Użyj tej komendy jeżeli będziesz chciał zakończyć ticket (sprzedawca)")
+    .setDescription("Użyj tej komendy jeżeli będziesz chciał zakończyć ticket")
     .setDefaultMemberPermissions(null)
     .addStringOption((option) =>
       option
@@ -5597,12 +5597,12 @@ const commands = [
   // NEW helper admin commands for claiming/unclaiming
   new SlashCommandBuilder()
     .setName("przejmij")
-    .setDescription("Przejmij aktualny ticket (sprzedawca)")
+    .setDescription("Przejmij aktualny ticket")
     .setDefaultMemberPermissions(null)
     .toJSON(),
   new SlashCommandBuilder()
     .setName("odprzejmij")
-    .setDescription("Zwolnij aktualny ticket (sprzedawca)")
+    .setDescription("Zwolnij aktualny ticket")
     .setDefaultMemberPermissions(null)
     .toJSON(),
   new SlashCommandBuilder()
@@ -5800,7 +5800,7 @@ const commands = [
     .toJSON(),
   new SlashCommandBuilder()
     .setName("rozliczenie")
-    .setDescription("Dodaj kwote do rozliczeń (sprzedawca)")
+    .setDescription("Dodaj kwote do rozliczeń")
     .setDefaultMemberPermissions(null)
     .addIntegerOption((option) =>
       option
@@ -5956,7 +5956,7 @@ const commands = [
     .toJSON(),
   new SlashCommandBuilder()
     .setName("wezwij")
-    .setDescription("Wezwij osobe (sprzedawca)")
+    .setDescription("Wezwij osobe")
     .setDefaultMemberPermissions(null)
     .addUserOption((option) =>
       option
