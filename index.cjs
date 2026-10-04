@@ -540,6 +540,24 @@ const opinieChannels = new Map();
 const ticketCounter = new Map();
 const fourMonthBlockList = new Map(); // guildId -> Set(userId)
 const ticketCategories = new Map();
+const ticketCategoryTemplates = new Map();
+const { createTicketCategoryManager } = require("./ticket-category-manager.cjs");
+const ticketCategoryManager = createTicketCategoryManager({
+  categoryMap: ticketCategories, templates: ticketCategoryTemplates,
+  channelType: ChannelType, flags: PermissionFlagsBits,
+  persist: () => saveStateToSupabase(buildPersistentStateData()),
+});
+
+client.on(Events.ChannelDelete, (channel) => {
+  if (channel.guild && channel.parentId && channel.type !== ChannelType.GuildCategory && ticketCategoryManager.keyFor(channel.guild, channel.parentId)) {
+    ticketCategoryManager.cleanup(channel.guild, channel.parentId).catch(error => console.error("[ticket-category] cleanup:", error));
+  }
+});
+client.on(Events.ChannelUpdate, (oldChannel, channel) => {
+  if (channel.guild && oldChannel.parentId && oldChannel.parentId !== channel.parentId && ticketCategoryManager.keyFor(channel.guild, oldChannel.parentId)) {
+    ticketCategoryManager.cleanup(channel.guild, oldChannel.parentId).catch(error => console.error("[ticket-category] move cleanup:", error));
+  }
+});
 const legitRepCooldown = new Map(); // userId -> timestamp ostatniego poprawnego +rep
 const dropChannels = new Map(); // <-- mapa kanałów gdzie można używać /drop
 const sprawdzZaproszeniaCooldowns = new Map(); // userId -> lastTs
@@ -2611,6 +2629,7 @@ function buildPersistentStateData() {
     verificationRoles: verificationRolesObj,
     pendingVerifications: pendingVerificationsObj,
     ticketCategories: ticketCategoriesObj,
+    ticketCategoryTemplates: Object.fromEntries(ticketCategoryTemplates),
     dropChannels: dropChannelsObj,
     sprawdzZaproszeniaCooldowns: sprawdzZaproszeniaCooldownsObj,
     lastOpinionInstruction: lastOpinionInstructionObj,
@@ -4610,6 +4629,9 @@ async function loadPersistentState() {
       }
 
       // Load ticketCategories
+      for (const [guildId, templates] of Object.entries(botStateData.ticketCategoryTemplates || {})) {
+        ticketCategoryTemplates.set(guildId, templates);
+      }
       if (botStateData.ticketCategories && typeof botStateData.ticketCategories === "object") {
         for (const [guildId, categories] of Object.entries(botStateData.ticketCategories)) {
           ticketCategories.set(guildId, categories);
@@ -6940,6 +6962,9 @@ client.once(Events.ClientReady, async (c) => {
 
   // Timer wraca po wczytaniu stanu także w trybie core, przed jego early return.
   scheduleRandomAutoLegitCheck();
+  for (const guild of c.guilds.cache.values()) {
+    await ticketCategoryManager.cleanup(guild).catch(error => console.error("[ticket-category] startup cleanup:", error));
+  }
 
   if (!ENABLE_HEAVY_STARTUP_SYNC) {
     // Najpierw dostępność komend. Pełne skanowanie historii wiadomości i paneli
@@ -8222,49 +8247,14 @@ async function handleModalSubmit(interaction) {
       ],
     };
 
-    // Dodaj rangi limitów w zależności od kategorii
-    if (parentToUse) {
-      const categoryId = parentToUse;
-
-      // Specjalna obsługa dla kategorii "inne" - tylko właściciel i właściciel ticketu widzą
-      if (categoryId === categories["inne"]) {
-        createOptions.permissionOverwrites.push(
-          { id: interaction.guild.ownerId, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] } // właściciel serwera
-        );
-      }
-      // Zakup 0-20 - wszystkie rangi widzą
-      else if (categoryId === "1449526840942268526") {
-        createOptions.permissionOverwrites.push(
-          { id: "1449448705563557918", allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] }, // limit 20
-          { id: "1449448702925209651", allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] }, // limit 50
-          { id: "1449448686156255333", allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] }, // limit 100
-          { id: "1449448860517798061", allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] }  // limit 200
-        );
-      }
-      // Zakup 20-50 - limit 20 nie widzi
-      else if (categoryId === "1449526958508474409") {
-        createOptions.permissionOverwrites.push(
-          { id: "1449448702925209651", allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] }, // limit 50
-          { id: "1449448686156255333", allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] }, // limit 100
-          { id: "1449448860517798061", allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] }  // limit 200
-        );
-      }
-      // Zakup 50-100 - limit 20 i 50 nie widzą
-      else if (categoryId === "1449451716129984595") {
-        createOptions.permissionOverwrites.push(
-          { id: "1449448686156255333", allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] }, // limit 100
-          { id: "1449448860517798061", allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] }  // limit 200
-        );
-      }
-      // Zakup 100-200 - tylko limit 200 widzi
-      else if (categoryId === "1449452354201190485") {
-        createOptions.permissionOverwrites.push(
-          { id: "1449448860517798061", allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] }  // limit 200
-        );
-      }
+    // Limity wynikają z typu ticketu, a nie z ID odtwarzanej kategorii.
+    if (ticketType === "inne") {
+      createOptions.permissionOverwrites.push({ id: guild.ownerId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
+    } else if (ticketType.startsWith("zakup-") || ticketType === "sprzedaz") {
+      createOptions.permissionOverwrites.push(...getLimitRolePermissions(ticketType, null));
     }
 
-    const channel = await interaction.guild.channels.create(createOptions);
+    const channel = await ticketCategoryManager.create(interaction.guild, ticketType, createOptions);
 
     const headerText = `\`\`\`text\n🛒 NEW SHOP × ${ticketTypeLabel}\n\`\`\``;
     const bodyText =
@@ -10982,7 +10972,10 @@ function isOwnerOnlyPurchaseTicket(channel, ticketMeta = null) {
   return /-(boty|bot|autorynek|mod|mody)$/.test(normalizedName);
 }
 
-function getPurchaseStaffRoleIdsForCategory(categoryId) {
+function getPurchaseStaffRoleIdsForCategory(categoryId, guild) {
+  const key = guild && ticketCategoryManager.keyFor(guild, categoryId);
+  const thresholds = ["zakup-0-20", "zakup-20-50", "zakup-50-100", "zakup-100-200", "zakup-200-400", "zakup-400-999"];
+  if (thresholds.includes(key)) return PURCHASE_STAFF_ROLE_IDS.slice(thresholds.indexOf(key));
   const normalized = String(categoryId || "");
   switch (normalized) {
     case "1449526840942268526":
@@ -11006,7 +10999,7 @@ async function syncPurchaseTicketSellerVisibility(
 ) {
   if (!guild || !channel || channel.type !== ChannelType.GuildText) return false;
 
-  const allowedRoleIds = getPurchaseStaffRoleIdsForCategory(channel.parentId);
+  const allowedRoleIds = getPurchaseStaffRoleIdsForCategory(channel.parentId, guild);
   const hiddenRoleIds = Array.from(
     new Set([BASE_SELLER_ROLE_ID, ...PURCHASE_STAFF_ROLE_IDS]),
   );
@@ -18052,11 +18045,8 @@ async function handleTicketZakonczCommand(interaction) {
   ticketRepMessages.set(channel.id, repMessage);
 
   // Przenieś ticket do kategorii zrealizowanej
-  const ARCHIVED_CATEGORY_ID = "1469059216303198261";
   try {
-    if (channel.parentId !== ARCHIVED_CATEGORY_ID) {
-      await channel.setParent(ARCHIVED_CATEGORY_ID, { lockPermissions: false });
-    }
+    await ticketCategoryManager.move(channel, "zrealizowane");
   } catch (err) {
     console.error("Nie udało się przenieść ticketu do kategorii zrealizowanej:", err);
   }
@@ -20707,19 +20697,11 @@ async function ticketClaimCommon(interaction, channelId, opts = {}) {
     if (!ticketData.originalCategoryId) {
       ticketData.originalCategoryId = ch.parentId;
     }
+    ticketData.originalCategoryKey ||= ticketCategoryManager.keyFor(interaction.guild, ticketData.originalCategoryId);
 
     // Przenieś do kategorii TICKETY PRZEJĘTE
-    const przejetaKategoriaId = "1457446529395593338";
-    const przejetaKategoria = await client.channels.fetch(przejetaKategoriaId).catch(() => null);
-
-    if (przejetaKategoria) {
-      await ch.setParent(przejetaKategoriaId, { lockPermissions: false }).catch((err) => {
-        console.error("Błąd przenoszenia do kategorii TICKETY PRZEJĘTE:", err);
-      });
-      console.log(`Przeniesiono ticket ${channelId} do kategorii TICKETY PRZEJĘTE`);
-    } else {
-      console.error("Nie znaleziono kategorii TICKETY PRZEJĘTE (1457446529395593338)");
-    }
+    await ticketCategoryManager.move(ch, "przejete");
+    console.log(`Przeniesiono ticket ${channelId} do kategorii TICKETY PRZEJĘTE`);
 
     // Ustaw uprawnienia dla osoby przejmującej + właściciela ticketu
     const permissionOverwrites = [
@@ -21009,8 +20991,11 @@ async function ticketUnclaimCommon(interaction, channelId, expectedClaimer = nul
     const releaserId = interaction.user.id;
     const previousClaimerId = ticketData.claimedBy || null;
 
-    // Przywróć oryginalną kategorię jeśli istnieje
-    if (ticketData.originalCategoryId) {
+    // Odtwórz kategorię po zwolnieniu ticketu, nawet jeśli wcześniej została usunięta.
+    const originalKey = ticketData.originalCategoryKey || ticketCategoryManager.keyFor(interaction.guild, ticketData.originalCategoryId);
+    if (originalKey) {
+      ticketData.originalCategoryId = await ticketCategoryManager.move(ch, originalKey);
+    } else if (ticketData.originalCategoryId) {
       const originalCategory = await client.channels.fetch(ticketData.originalCategoryId).catch(() => null);
 
       if (originalCategory) {
@@ -21387,7 +21372,7 @@ async function openRewardClaimTicket(interaction) {
   };
   if (parentToUse) createOptions.parent = parentToUse;
 
-  const channel = await guild.channels.create(createOptions);
+  const channel = await ticketCategoryManager.create(guild, ticketType, createOptions);
 
   const headerText = `\`\`\`text\n🛒 NEW SHOP × ${ticketTypeLabel}\n\`\`\``;
   const bodyText =
@@ -23452,7 +23437,7 @@ async function handleModalSubmit(interaction) {
           );
         }
 
-        const channel = await interaction.guild.channels.create(createOptions);
+        const channel = await ticketCategoryManager.create(interaction.guild, "odbior-nagrody", createOptions);
 
         const headerText = `\`\`\`text\n🛒 NEW SHOP × ${ticketTypeLabel}\n\`\`\``;
         const bodyText =
@@ -23655,34 +23640,8 @@ async function handleModalSubmit(interaction) {
       }
     }
 
-    // find a fallback category when categoryId undefined — attempt some heuristics
-    let parentToUse = null;
-    if (categoryId && interaction.guild.channels.cache.has(categoryId)) {
-      parentToUse = categoryId;
-    } else {
-      const preferNames = {
-        "zakup-0-20": "zakup 0-20",
-        "zakup-20-50": "zakup 20-50",
-        "zakup-50-100": "zakup 50-100",
-        "zakup-100-200": "zakup 100-200",
-        "zakup-200-400": "zakup 200-400",
-        "zakup-400-999": "zakup 400-999",
-        "zakup-mody": "zakup",
-        "zakup-autorynku": "zakup",
-        sprzedaz: "sprzedaz",
-        "odbior-nagrody": "odbior",
-        inne: "inne",
-      };
-      const prefer = preferNames[ticketType] || "zakup";
-      const foundCat = interaction.guild.channels.cache.find(
-        (c) =>
-          c.type === ChannelType.GuildCategory &&
-          c.name &&
-          c.name.toLowerCase().includes(prefer),
-      );
-      if (foundCat) parentToUse = foundCat.id;
-      else parentToUse = null;
-    }
+    // Kategorię dobiera i odtwarza manager; uprawnienia liczymy z typu ticketu.
+    const parentToUse = categoryId || ticketType;
 
     // create channel with or without parent
     const createOptions = {
@@ -23778,7 +23737,7 @@ async function handleModalSubmit(interaction) {
             { id: interaction.guild.ownerId, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] }
           );
         } else {
-          const limitOverwrites = getLimitRolePermissions(ticketType, categoryId, categories);
+          const limitOverwrites = getLimitRolePermissions(ticketType, null);
           createOptions.permissionOverwrites.push(...limitOverwrites);
         }
       }
@@ -23790,7 +23749,7 @@ async function handleModalSubmit(interaction) {
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] }).catch(() => null);
 
-    const channel = await interaction.guild.channels.create(createOptions);
+    const channel = await ticketCategoryManager.create(interaction.guild, ticketType, createOptions);
 
     const isPurchaseTicket = ticketType && (ticketType.startsWith("zakup-") || ticketType === "zakup" || ticketTypeLabel === "ZAKUP" || ticketTypeLabel === "ZAKUP AUTORYNKU");
     const autoClaimCfg = autoPrzejmijSettings.get(interaction.guildId);
@@ -27416,7 +27375,7 @@ function guessTicketTypeLabel(ticketChannel, ticketMeta = null) {
     return "NAGRODA";
   }
 
-  if (ticketChannel.parentId && String(ticketChannel.parentId) === String(PRIVATE_SPECIAL_PURCHASE_CATEGORY_ID)) {
+  if (ticketChannel.parentId && (String(ticketChannel.parentId) === String(PRIVATE_SPECIAL_PURCHASE_CATEGORY_ID) || ticketCategoryManager.keyFor(ticketChannel.guild, ticketChannel.parentId) === "boty-mody")) {
     const normalizedName = String(ticketChannel.name || "").toLowerCase();
     const normalizedTopic = String(ticketChannel.topic || "").toLowerCase();
     if (
