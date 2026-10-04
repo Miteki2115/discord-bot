@@ -3657,7 +3657,11 @@ function buildFreeKasaResultEmbed({
 function buildFreeKasaResultPayload({ user, guildId, reward = null, loss = false, retryTimestamp = null }) {
   const embed = buildFreeKasaResultEmbed({ user, reward, loss, retryTimestamp });
   const container = new ContainerBuilder().setAccentColor(embed.data.color);
-  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(embed.data.description));
+  const description = embed.data.description;
+  const headerEnd = description.indexOf("```", 3) + 3;
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(description.slice(0, headerEnd)));
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true));
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(description.slice(headerEnd).trim()));
   appendBrandFooterToContainer(container, guildId);
   return {
     components: [new TextDisplayBuilder().setContent(`<@${user.id}>`), container],
