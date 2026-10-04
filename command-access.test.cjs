@@ -56,3 +56,36 @@ test("direct wezwij handler blocks target before channel edit or DM", async () =
   let denied = false; i.reply = async () => { denied = true; };
   await context.handleWezwijCommand(i); assert(denied);
 });
+
+function registrationContext(failGuild = false, global = false) {
+  const calls = [];
+  const context = vm.createContext({
+    process: { env: { REGISTER_GLOBAL: global ? "true" : "false" } },
+    console: { log() {}, warn() {}, error() {} },
+    Date, setTimeout: (callback) => callback(),
+    DEFAULT_GUILD_ID: "guild", commands: [{ name: "znizka" }], discordApplicationDiagnostic: {},
+    Routes: { applicationGuildCommands: () => "guild-commands", applicationCommands: () => "global-commands", applicationCommand: (_, id) => `global/${id}` },
+    rest: {
+      put: async (route, data) => { calls.push(["put", route, data.body]); if (failGuild && route === "guild-commands") throw new Error("Failed registration"); },
+      get: async (route) => { calls.push(["get", route]); return [{ id: "vouch", name: "vouch", type: 1 }, { id: "ping", name: "ping", type: 1 }, { id: "context", name: "User action", type: 2 }]; },
+      delete: async (route) => { calls.push(["delete", route]); },
+    },
+  });
+  vm.runInContext(source.slice(source.indexOf("async function registerCommands()"), source.indexOf("// improved apply defaults")), context);
+  return { context, calls };
+}
+test("guild registration removes stale global slash commands, preserving context commands", async () => {
+  const { context, calls } = registrationContext();
+  await context.registerCommands();
+  assert.deepEqual(calls.map(c => c.slice(0, 2)), [["put", "guild-commands"], ["get", "global-commands"], ["delete", "global/vouch"], ["delete", "global/ping"]]);
+});
+test("failed guild registration never removes the global fallback", async () => {
+  const { context, calls } = registrationContext(true);
+  await context.registerCommands();
+  assert.equal(calls.length, 1);
+});
+test("explicit global mode replaces global definitions instead of deleting them", async () => {
+  const { context, calls } = registrationContext(false, true);
+  await context.registerCommands();
+  assert.deepEqual(calls.map(c => c.slice(0, 2)), [["put", "guild-commands"], ["put", "global-commands"]]);
+});

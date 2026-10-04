@@ -6782,6 +6782,7 @@ async function registerCommands() {
 
     // Prefer ustawienie BOT_ID przez zmienną środowiskową
     const BOT_ID = process.env.DISCORD_BOT_ID || "1449397101032112139";
+    let guildCommandsRegistered = false;
 
     // Rejestruj komendy na konkretnym serwerze (szybsze, natychmiastowe)
     try {
@@ -6791,6 +6792,7 @@ async function registerCommands() {
           body: commands,
         },
       );
+      guildCommandsRegistered = true;
       discordApplicationDiagnostic = {
         ...discordApplicationDiagnostic,
         command_registration: 'guild_success',
@@ -6825,10 +6827,21 @@ async function registerCommands() {
           e.message || e,
         );
       }
+    } else if (guildCommandsRegistered) {
+      // Pominięcie rejestracji nie usuwa wcześniejszych globalnych komend.
+      // Czyścimy slash commands dopiero po potwierdzeniu komend serwerowych.
+      // Komendy kontekstowe innych typów pozostają bez zmian.
+      try {
+        const globalCommands = await rest.get(Routes.applicationCommands(BOT_ID));
+        for (const command of globalCommands.filter((command) => command.type === 1)) {
+          await rest.delete(Routes.applicationCommand(BOT_ID, command.id));
+          console.log(`[COMMANDS] Usunięto starą globalną komendę /${command.name}`);
+        }
+      } catch (e) {
+        console.warn("Nie udało się usunąć starych globalnych komend:", e.message || e);
+      }
     } else {
-      console.log(
-        "Pominięto rejestrację globalnych komend (ustaw REGISTER_GLOBAL=true aby włączyć).",
-      );
+      console.warn("Pominięto czyszczenie globalnych komend: rejestracja serwerowych nie powiodła się.");
     }
   } catch (error) {
     console.error("Błąd rejestracji komend:", error);
