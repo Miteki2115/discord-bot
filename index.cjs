@@ -12761,39 +12761,6 @@ async function handlePanelWeryfikacjaCommand(interaction) {
   }
 
   const roleId = "1425935544273338532";
-  // lokalna ścieżka do pliku GIF w folderze attached_assets
-  const gifPath = path.join(
-    __dirname,
-    "attached_assets",
-    "standard_(1)_1766946611653.gif",
-  );
-  let attachment = null;
-
-  try {
-    // dołączamy plik i nadajemy mu prostą nazwę, której użyjemy w embed (attachment://standard_1.gif)
-    attachment = fs.existsSync(gifPath)
-      ? new AttachmentBuilder(gifPath, { name: "standard_1.gif" }) : null;
-  } catch (err) {
-    console.warn("Nie udało się załadować lokalnego GIFa:", err);
-    attachment = null;
-  }
-
-  const embed = new EmbedBuilder()
-    .setColor(COLOR_BLUE)
-    .setDescription(
-      "```\n" +
-      "🛒 New Shop × WERYFIKACJA\n" +
-      "```\n" +
-      "> <a:arrowwhite:1491476759290449984>  Weryfikacja pozwala **przywrócić cię na serwer** po __**t3rmie**__.\n" +
-      "> <a:arrowwhite:1491476759290449984>  **Nie będziemy zapraszać** żadnych osób na **inne serwery!**"
-    )
-    // jeśli plik lokalny załadowany - użyj attachment://..., w przeciwnym wypadku fallback na zdalny URL
-    .setImage(
-      attachment
-        ? "attachment://standard_1.gif"
-        : "https://cdn.discordapp.com/attachments/1449367698374004869/1450192787894046751/standard_1.gif",
-    );
-
   const button = new ButtonBuilder()
     .setStyle(ButtonStyle.Link)
     .setLabel("Zweryfikuj się")
@@ -12802,9 +12769,6 @@ async function handlePanelWeryfikacjaCommand(interaction) {
     );
 
   const row = new ActionRowBuilder().addComponents(button);
-  const verificationMediaUrl = attachment
-    ? "attachment://standard_1.gif"
-    : "https://cdn.discordapp.com/attachments/1449367698374004869/1450192787894046751/standard_1.gif";
   const verificationContainer = new ContainerBuilder()
     .setAccentColor(COLOR_BLUE)
     .addTextDisplayComponents(
@@ -12821,11 +12785,6 @@ async function handlePanelWeryfikacjaCommand(interaction) {
         "> <a:arrowwhite:1491476759290449984> **Nie będziemy zapraszać** żadnych osób na **inne serwery!**",
       ),
     )
-    .addMediaGalleryComponents(
-      new MediaGalleryBuilder().addItems(
-        new MediaGalleryItemBuilder().setURL(verificationMediaUrl),
-      ),
-    )
     .addSeparatorComponents(new SeparatorBuilder().setDivider(true))
     .addActionRowComponents(row);
 
@@ -12840,7 +12799,7 @@ async function handlePanelWeryfikacjaCommand(interaction) {
       flags: MessageFlags.IsComponentsV2,
       allowedMentions: { roles: [roleId] },
     };
-    if (attachment) sendOptions.files = [attachment];
+
 
     await interaction.channel.send(sendOptions);
 
