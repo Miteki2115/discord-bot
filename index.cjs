@@ -12763,7 +12763,8 @@ async function handlePanelWeryfikacjaCommand(interaction) {
   const roleId = "1425935544273338532";
   const button = new ButtonBuilder()
     .setStyle(ButtonStyle.Link)
-    .setLabel("Zweryfikuj się")
+    .setLabel("︲Zweryfikuj się")
+    .setEmoji({ id: "1537166632613322792", name: "YES", animated: true })
     .setURL(
       "https://discord.com/oauth2/authorize?client_id=1449397101032112139&redirect_uri=https%3A%2F%2Frestorecord.com%2Fapi%2Fcallback&response_type=code&scope=identify+guilds.join&state=1350446732365926491&prompt=none",
     );
