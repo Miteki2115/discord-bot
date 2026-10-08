@@ -4,7 +4,8 @@
   "description": "Discord bot for New Shop",
   "main": "index.cjs",
   "scripts": {
-    "start": "node index.cjs"
+    "start": "node index.cjs",
+    "test": "node --test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

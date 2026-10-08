@@ -900,6 +900,7 @@ const LEGIT_REP_SERVERS = [
   "MINESTAR LIFESTEAL",
   "MINESTAR SKYPVP",
   "DONUT SMP",
+  "INNE",
 ];
 
 function normalizeLegitRepPart(value) {
@@ -5239,12 +5240,7 @@ const commands = [
         .setDescription("Wybierz serwer")
         .setRequired(true)
         .addChoices(
-          { name: "ANARCHIA LIFESTEAL", value: "ANARCHIA LIFESTEAL" },
-          { name: "ANARCHIA BOXPVP", value: "ANARCHIA BOXPVP" },
-          { name: "MINESTAR LIFESTEAL", value: "MINESTAR LIFESTEAL" },
-          { name: "MINESTAR SKYPVP", value: "MINESTAR SKYPVP" },
-          { name: "DONUT SMP", value: "DONUT SMP" },
-          { name: "INNE", value: "INNE" }
+          ...LEGIT_REP_SERVERS.map((server) => ({ name: server, value: server }))
         )
     )
     .toJSON(),
@@ -18998,6 +18994,10 @@ async function sendLegitCheckInfoMessage(channel) {
 
 // Helper to send anonymous rep using Webhooks
 async function sendAnonRep(channel, content) {
+  // Anonymous and manually posted legit checks use the same format rules.
+  if (!parseLegitRepContent(content)) {
+    throw new Error("Nieprawidłowy wzór anonimowego legit checka.");
+  }
   try {
     let webhooks = await channel.fetchWebhooks().catch(() => null);
     let webhook = webhooks ? webhooks.find(w => w.owner?.id === client.user.id) : null;
