@@ -7,6 +7,7 @@ const STYLES = {
   ready: ['🟢', 'BOT GOTOWY', 0x36d399],
   stop: ['⏹️', 'ZAMYKANIE PROCESU', 0xf6bd60],
   error: ['❌', 'BŁĄD ZADANIA', 0xf87171],
+  warning: ['⚠️', 'OSTRZEŻENIE DISCORDA', 0xf6bd60],
   fatal: ['🚨', 'AWARIA · PROCES ZOSTANIE ZAMKNIĘTY', 0xef4444],
   disconnect: ['🔌', 'UTRATA POŁĄCZENIA', 0xf87171],
   reconnect: ['🔄', 'PONOWNE ŁĄCZENIE', 0xf6bd60],
@@ -188,6 +189,7 @@ function createBotMonitoring({ client, events = {}, webhookUrl, monitorUrl, foot
     shards.set(shard, 'down');
     void send('disconnect', `Shard ${shard} · kod ${event?.code ?? 'nieznany'}. ${sanitize(event?.reason || 'Połączenie zostało przerwane.', secrets)}`, { dedupeKey: `disconnect:${shard}` });
   });
+  client.on(events.Warn || 'warn', message => { void send('warning', sanitize(message, secrets)); });
   client.on(events.ShardReconnecting || 'shardReconnecting', shard => {
     shards.set(shard, 'connecting');
     void send('reconnect', `Shard ${shard} · czekam na ponowne połączenie. To reconnect, a nie restart procesu.`, { dedupeKey: `reconnect:${shard}` });

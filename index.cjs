@@ -141,9 +141,12 @@ const monitoring = createBotMonitoring({
       return data?.data || null;
     },
     async save(data) {
-      const { error } = await db.supabase.from('bot_state').upsert({
-        id: 2, data, updated_at: new Date().toISOString(),
-      }, { onConflict: 'id' });
+      const row = { data, updated_at: new Date().toISOString() };
+      // A retiring Render instance must not overwrite the newer instance's session.
+      const query = data.phase === 'starting'
+        ? db.supabase.from('bot_state').upsert({ id: 2, ...row }, { onConflict: 'id' })
+        : db.supabase.from('bot_state').update(row).eq('id', 2).eq('data->>sessionId', data.sessionId);
+      const { error } = await query;
       if (error) throw error;
     },
   },

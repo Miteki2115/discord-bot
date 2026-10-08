@@ -113,3 +113,38 @@ test('fatal exception logs the failure then exits with code 1', async () => {
   assert.ok(f.calls.some(c => c.body.embeds[0].title.includes('AWARIA')));
   assert.equal(f.lifecycle.at(-1), 'exit:1');
 });
+
+test('a deleted status message is recreated, subsequent updates edit the new one', async () => {
+  const requests = [];
+  let deleted = true;
+  const f = fixture({ overrides: { fetchImpl: async (url, request) => {
+    requests.push({ url: String(url), method: request.method });
+    if (request.method === 'PATCH' && deleted) { deleted = false; return { ok: false, status: 404 }; }
+    return { ok: true, json: async () => ({ id: deleted ? 'old' : 'new' }) };
+  } } });
+  await f.logger.boot;
+  await f.logger.updateStatus(); await f.logger.updateStatus(); await f.logger.updateStatus();
+  assert.deepEqual(requests.map(r => r.method), ['POST', 'POST', 'PATCH', 'POST', 'PATCH']);
+  assert.match(requests.at(-1).url, /messages\/new/);
+});
+
+test('an HTTP timeout produces one alert, never a timeout plus a duplicate network error', async () => {
+  const pendingTimers = new Map(); let nextId = 0;
+  const timers = { setTimeout(fn, ms) { pendingTimers.set(++nextId, { fn, ms }); return nextId; },
+    clearTimeout(id) { pendingTimers.delete(id); } };
+  const seen = [];
+  const f = fixture({ overrides: { timers, monitorUrl: 'https://bot.example', fetchImpl: async (url, request) => {
+    if (String(url).includes('bot.example')) return new Promise((_, reject) => {
+      request.signal.addEventListener('abort', () => { const e = new Error('timeout'); e.name = 'AbortError'; reject(e); });
+    });
+    seen.push(JSON.parse(request.body));
+    return { ok: true, json: async () => ({ id: '1' }) };
+  } } });
+  await f.logger.boot;
+  const result = f.logger.checkHttp();
+  [...pendingTimers.values()].find(t => t.ms === 10000).fn();
+  await result;
+  const alerts = seen.filter(p => p.embeds[0].title.includes('HTTP · PROBLEM'));
+  assert.equal(alerts.length, 1);
+  assert.match(alerts[0].embeds[0].description, /10 sekund/);
+});
