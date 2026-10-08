@@ -126,6 +126,29 @@ const client = new Client({
   ]
 });
 
+const { createBotMonitoring } = require("./bot-monitoring.cjs");
+const monitoring = createBotMonitoring({
+  client,
+  events: Events,
+  webhookUrl: process.env.UPTIME_WEBHOOK,
+  monitorUrl: process.env.MONITOR_HTTP_URL || process.env.RENDER_EXTERNAL_URL,
+  footer: () => getBrandFooterObject(),
+  // Separate row: monitoring never replaces shop counters stored at id=1.
+  store: {
+    async load() {
+      const { data, error } = await db.supabase.from('bot_state').select('data').eq('id', 2).single();
+      if (error && error.code !== 'PGRST116') throw error;
+      return data?.data || null;
+    },
+    async save(data) {
+      const { error } = await db.supabase.from('bot_state').upsert({
+        id: 2, data, updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+      if (error) throw error;
+    },
+  },
+});
+
 // Render potrafi zawiesić samo GET /gateway/bot, mimo że WebSocket gateway jest
 // osiągalny. Dla jednego, nieszardowanego procesu odpowiedź jest deterministyczna,
 // więc omijamy wyłącznie ten request startowy. Cały pozostały REST nadal obsługuje
@@ -5036,29 +5059,14 @@ const persistentStateReady = loadPersistentState().then(() => {
   console.error("[state] Błąd loadPersistentState():", err);
 });
 
-// Flush debounced state on shutdown so counters don't reset on restart
-process.once("SIGINT", () => {
-  try {
-    if (saveStateTimeout) {
-      clearTimeout(saveStateTimeout);
-      saveStateTimeout = null;
-    }
-    flushPersistentStateSync();
-  } finally {
-    process.exit(0);
-  }
-});
-process.once("SIGTERM", () => {
-  try {
-    if (saveStateTimeout) {
-      clearTimeout(saveStateTimeout);
-      saveStateTimeout = null;
-    }
-    flushPersistentStateSync();
-  } finally {
-    process.exit(0);
-  }
-});
+// Save pending shop data and await lifecycle logging before leaving the process.
+function flushOnShutdown() {
+  if (saveStateTimeout) { clearTimeout(saveStateTimeout); saveStateTimeout = null; }
+  flushPersistentStateSync();
+}
+process.once("SIGINT", () => { void monitoring.shutdown("SIGINT — zatrzymanie procesu", 0, flushOnShutdown); });
+process.once("SIGTERM", () => { void monitoring.shutdown("SIGTERM — zatrzymanie przez hosting lub wdrożenie", 0, flushOnShutdown); });
+process.once("uncaughtException", (err) => { void monitoring.crash(err, flushOnShutdown); });
 
 // Defaults provided by user (kept mainly for categories / names)
 const DEFAULT_GUILD_ID = "1350446732365926491";
@@ -27944,261 +27952,8 @@ setTimeout(async () => {
   }
 }, 5000);
 
-// ---------------------------------------------------
-// FULL MONITORING MODE - System statusów i alertów
-// ---------------------------------------------------
-
-const https = require('https');
-
-let startTime = Date.now();
-let lastPingCheck = Date.now();
-let pingHistory = [];
-let errorCount = 0;
-let lastErrorTime = null;
-
-// Funkcja formatowania uptime
-function formatUptime(ms) {
-  const sec = Math.floor(ms / 1000);
-  const min = Math.floor(sec / 60);
-  const hrs = Math.floor(min / 60);
-  const days = Math.floor(hrs / 24);
-
-  return `${days}d ${hrs % 24}h ${min % 60}m ${sec % 60}s`;
-}
-
-// Funkcja wysyłania embeda na webhook
-async function sendMonitoringEmbed(title, description, color) {
-  const webhookUrl = process.env.UPTIME_WEBHOOK;
-  if (!webhookUrl) return;
-
-  try {
-    const payload = JSON.stringify({
-      embeds: [{
-        title: title,
-        description: description,
-        color: color,
-        footer: getBrandFooterObject()
-      }]
-    });
-
-    const url = new URL(webhookUrl);
-    const options = {
-      hostname: url.hostname,
-      path: url.pathname + url.search,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload)
-      }
-    };
-
-    const req = https.request(options, (res) => {
-      res.on('data', () => { });
-      res.on('end', () => { });
-    });
-
-    req.on('error', (err) => {
-      console.error("Błąd wysyłania monitoringu:", err);
-    });
-
-    req.write(payload);
-    req.end();
-  } catch (err) {
-    console.error("Błąd wysyłania monitoringu:", err);
-  }
-}
-
-// Funkcja sprawdzania statusu bota
-function getBotStatus() {
-  const ping = client.ws?.ping || 0;
-  const uptime = Date.now() - startTime;
-
-  let status = "🟢 Stabilny";
-  let statusColor = 0x00ff00;
-
-  if (ping > 400 || errorCount > 5) {
-    status = "🔴 Krytyczny";
-    statusColor = 0xff0000;
-  } else if (ping > 200 || errorCount > 2) {
-    status = "🟠 Ostrzeżenie";
-    statusColor = 0xffaa00;
-  }
-
-  return { status, statusColor, ping, uptime };
-}
-
-// 1. Heartbeat co 5 minut (bot żyje + ping + uptime)
-setInterval(async () => {
-  const webhookUrl = process.env.UPTIME_WEBHOOK;
-  if (!webhookUrl) return;
-
-  const ping = client.ws?.ping || 0;
-  const uptime = formatUptime(Date.now() - startTime);
-  const { status, statusColor } = getBotStatus();
-
-  // Zapisz ping do historii
-  pingHistory.push(ping);
-  if (pingHistory.length > 12) pingHistory.shift(); // 1 godzina historii
-
-  const avgPing = Math.round(pingHistory.reduce((a, b) => a + b, 0) / pingHistory.length);
-
-  const description = `⏱ **Uptime:** ${uptime}\n📡 **Ping:** ${ping}ms (średnio: ${avgPing}ms)\n🔢 **Błędy:** ${errorCount}\n📊 **Status:** ${status}`;
-
-  await sendMonitoringEmbed("💓 Heartbeat - Bot działa", description, statusColor);
-}, 5 * 60 * 1000); // co 5 minut
-
-// 2. Alert przy błędzie krytycznym (bot padnie)
-process.on("uncaughtException", async (err) => {
-  console.error("🔴 Błąd krytyczny:", err);
-
-  errorCount++;
-  lastErrorTime = Date.now();
-
-  const description = `**Błąd krytyczny detected:**\n\`${err.message}\`\n\n**Stack:**\n\`${err.stack?.substring(0, 1000) || "Brak stack trace"}...\`\n\n**Czas:** ${new Date().toLocaleString("pl-PL")}`;
-
-  await sendMonitoringEmbed("🔴 BOT PADŁ - Błąd krytyczny", description, 0xff0000);
-
-  // Daj chwilę na wysłanie alertu
-  setTimeout(() => process.exit(1), 2000);
-});
-
-// 3. Alert przy zamknięciu procesu
-process.on("exit", async () => {
-  const uptime = formatUptime(Date.now() - startTime);
-  const description = `Bot został zamknięty (process.exit)\n⏱ **Czas działania:** ${uptime}\n📊 **Liczba błędów:** ${errorCount}`;
-
-  await sendMonitoringEmbed("🔴 Bot zamknięty", description, 0xff0000);
-});
-
-// 4. Monitor HTTP sprawdzający czy UptimeRobot pinguje
-setInterval(async () => {
-  const webhookUrl = process.env.UPTIME_WEBHOOK;
-  if (!webhookUrl) return;
-
-  const monitorUrl = process.env.MONITOR_HTTP_URL || process.env.RENDER_EXTERNAL_URL;
-  if (!monitorUrl) {
-    console.warn('[MONITOR_HTTP] Pomijam — brak MONITOR_HTTP_URL/RENDER_EXTERNAL_URL');
-    return;
-  }
-
-  try {
-    const startTime = Date.now();
-    const parsed = new URL(monitorUrl);
-
-    const options = {
-      protocol: parsed.protocol,
-      hostname: parsed.hostname,
-      path: parsed.pathname || '/',
-      method: 'GET'
-    };
-
-    const req = https.request(options, (res) => {
-      const responseTime = Date.now() - startTime;
-
-      if (res.statusCode === 200) {
-        const description = `🌐 **Monitor HTTP:** Aktywny\n📡 **Response time:** ${responseTime}ms\n📊 **Status:** HTTP ${res.statusCode}`;
-        sendMonitoringEmbed("🟢 Monitor HTTP - OK", description, 0x00ff00);
-      } else {
-        const description = `🟠 **Monitor HTTP:** Nieoczekiwana odpowiedź\n📊 **Status:** HTTP ${res.statusCode}\n⏱ **Response time:** ${responseTime}ms`;
-        sendMonitoringEmbed("🟠 Monitor HTTP - Ostrzeżenie", description, 0xffaa00);
-      }
-    });
-
-    req.on('error', (err) => {
-      const description = `🔴 **Monitor HTTP:** Brak odpowiedzi\n**Błąd:** ${err.message}\n**Czas:** ${new Date().toLocaleString("pl-PL")}`;
-      sendMonitoringEmbed("🔴 Monitor HTTP - Błąd", description, 0xff0000);
-    });
-
-    req.setTimeout(10000, () => {
-      req.destroy();
-      const description = `🔴 **Monitor HTTP:** Timeout\n**Czas:** ${new Date().toLocaleString("pl-PL")}`;
-      sendMonitoringEmbed("🔴 Monitor HTTP - Timeout", description, 0xff0000);
-    });
-
-    req.end();
-  } catch (err) {
-    const description = `🔴 **Monitor HTTP:** Błąd sprawdzania\n**Błąd:** ${err.message}\n**Czas:** ${new Date().toLocaleString("pl-PL")}`;
-    sendMonitoringEmbed("🔴 Monitor HTTP - Błąd", description, 0xff0000);
-  }
-}, 10 * 60 * 1000); // co 10 minut
-
-// 5. Raport okresowy co 12 godzin
-setInterval(async () => {
-  const webhookUrl = process.env.UPTIME_WEBHOOK;
-  if (!webhookUrl) return;
-
-  const { status, statusColor, ping, uptime } = getBotStatus();
-  const uptimeFormatted = formatUptime(uptime);
-  const avgPing = pingHistory.length > 0 ? Math.round(pingHistory.reduce((a, b) => a + b, 0) / pingHistory.length) : 0;
-
-  const description = `📊 **RAPORT DZIAŁANIA BOTA**\n\n` +
-    `⏱ **Uptime:** ${uptimeFormatted}\n` +
-    `📡 **Ping aktualny:** ${ping}ms\n` +
-    `📈 **Ping średni:** ${avgPing}ms\n` +
-    `🌐 **Monitor HTTP:** Aktywny\n` +
-    `🔢 **Liczba błędów:** ${errorCount}\n` +
-    `📊 **Status:** ${status}\n` +
-    `🕐 **Raport wygenerowany:** ${new Date().toLocaleString("pl-PL")}`;
-
-  await sendMonitoringEmbed("📊 Raport okresowy - 12h", description, statusColor);
-}, 12 * 60 * 60 * 1000); // co 12 godzin
-
-// 6. Monitorowanie reconnectów Discord
-client.on("reconnecting", () => {
-  console.log("🔄 Bot próbuje się połączyć ponownie...");
-  errorCount++;
-});
-
-client.on("resume", () => {
-  const description = `🔄 **Bot wznowił połączenie**\n⏱ **Czas działania:** ${formatUptime(Date.now() - startTime)}\n📊 **Liczba błędów:** ${errorCount}`;
-  sendMonitoringEmbed("🟢 Połączenie wznowione", description, 0x00ff00);
-});
-
-// 7. Funkcja ręcznego sprawdzania statusu
-async function checkBotStatus() {
-  const { status, statusColor, ping, uptime } = getBotStatus();
-  const uptimeFormatted = formatUptime(uptime);
-  const avgPing = pingHistory.length > 0 ? Math.round(pingHistory.reduce((a, b) => a + b, 0) / pingHistory.length) : 0;
-
-  return {
-    status,
-    statusColor,
-    ping,
-    avgPing,
-    uptime: uptimeFormatted,
-    errorCount,
-    lastErrorTime,
-    guilds: client.guilds.cache.size,
-    users: client.users.cache.size,
-    channels: client.channels.cache.size
-  };
-}
-
-// 8. Komenda statusu (opcjonalnie - można dodać do slash commands)
-async function sendStatusReport(channel) {
-  const status = await checkBotStatus();
-
-  const embed = new EmbedBuilder()
-    .setColor(status.statusColor)
-    .setTitle("📊 Status Bota")
-    .setDescription(`**Status:** ${status.status}`)
-    .addFields(
-      { name: "⏱ Uptime", value: status.uptime, inline: true },
-      { name: "📡 Ping", value: `${status.ping}ms (avg: ${status.avgPing}ms)`, inline: true },
-      { name: "🔢 Błędy", value: status.errorCount.toString(), inline: true },
-      { name: "🌐 Serwery", value: status.guilds.toString(), inline: true },
-      { name: "👥 Użytkownicy", value: status.users.toString(), inline: true },
-      { name: "💬 Kanały", value: status.channels.toString(), inline: true }
-    )
-    .setTimestamp()
-    .setFooter(getBrandFooterBuilderObject());
-
-  await channel.send({ embeds: [embed] });
-}
-
-console.log("🟢 FULL MONITORING MODE aktywowany - heartbeat co 5min, alerty błędów, monitor HTTP");
-
-// ---------------------------------------------------
+// Monitoring is installed at process startup; /statusbota uses the same measurements.
+async function checkBotStatus() { return monitoring.snapshot(); }
 
 console.log("[DEBUG] Próba połączenia z Discord...");
 console.log("[DEBUG] BOT_TOKEN exists:", !!process.env.BOT_TOKEN);
