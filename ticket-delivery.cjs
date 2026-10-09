@@ -101,7 +101,7 @@ function createTicketDelivery({ load, save, payload }) {
         if (!old) return;
         const next = { ...old, count: old.count + 1 };
         await commit(message.channel.id, next);
-        if (next.count >= 3) await publish(message.channel, next, true);
+        if (next.count >= 6) await publish(message.channel, next, true);
       });
     },
     remove(id) { return serial(() => states.has(id) ? commit(id, null) : undefined); },

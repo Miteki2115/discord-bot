@@ -58,13 +58,12 @@ test('reported purchase sums instalments and survives restart without losing its
   await assert.rejects(restarted.change(f.channel, 'start', '2m', '4'), /już licznik/);
 });
 
-test('each third human message moves the panel; bot posts do not count', async () => {
+test('each sixth human message moves the panel; bot posts do not count', async () => {
   const f = fixture(), manager = f.make();
   await manager.change(f.channel, 'start', '2m', '1');
   const original = f.saved().ticket.messageId;
   await manager.onMessage({ ...f.message(), author: { bot: true } });
-  await manager.onMessage(f.message());
-  await manager.onMessage(f.message());
+  for (let i = 0; i < 5; i++) await manager.onMessage(f.message());
   assert.equal(f.saved().ticket.messageId, original);
   await manager.onMessage(f.message());
   assert.notEqual(f.saved().ticket.messageId, original);
@@ -114,8 +113,7 @@ test('missing message is recreated; failed deletion rolls back the replacement p
   await manager.change(f.channel, 'nadalem', '570k', '2');
   assert.equal(f.messages.size, 1);
   f.failDelete(true);
-  await manager.onMessage(f.message());
-  await manager.onMessage(f.message());
+  for (let i = 0; i < 5; i++) await manager.onMessage(f.message());
   await assert.rejects(manager.onMessage(f.message()), /delete failed/);
   assert.equal(f.messages.size, 1);
   f.failDelete(false);
