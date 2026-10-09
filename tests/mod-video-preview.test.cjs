@@ -57,3 +57,44 @@ test('first reply and every subsequent recording retain the gallery and privacy'
     assert.equal(payload.components[1].type, 12);
   }
 });
+
+test('all four recordings are packaged, below 10 MB and ready for streaming', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  for (const name of ['Auto_Dripstone.mp4', 'Auto_dzwignia.mp4', 'No_entities.mp4', 'Sprawdz_procenty.mp4']) {
+    const data = fs.readFileSync(path.join(__dirname, '..', 'attached_assets', name));
+    assert.ok(data.length > 1000 && data.length < 10 * 1024 * 1024, name);
+    assert.equal(data.toString('ascii', 4, 8), 'ftyp');
+    const boxes = [];
+    for (let offset = 0; offset + 8 <= data.length;) {
+      const size = data.readUInt32BE(offset);
+      const type = data.toString('ascii', offset + 4, offset + 8);
+      boxes.push(type);
+      assert.ok(size >= 8, `${name}: invalid MP4 box`);
+      offset += size;
+    }
+    assert.ok(boxes.includes('moov') && boxes.includes('mdat'), name);
+    assert.ok(boxes.indexOf('moov') < boxes.indexOf('mdat'), `${name}: missing faststart`);
+  }
+});
+
+test('signed source URL is retained and packaged video bypasses stale environment links', async () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const vm = require('node:vm');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'index.cjs'), 'utf8');
+  const normalize = source.slice(source.indexOf('function normalizeDiscordCdnVideoUrl('),
+    source.indexOf('\nfunction isDiscordAttachmentUrl('));
+  const resolver = source.slice(source.indexOf('async function resolveModsVideoUrl('),
+    source.indexOf('\n// Helper: sprawdź czy użytkownik', source.indexOf('async function resolveModsVideoUrl(')));
+  const context = vm.createContext({
+    process: { env: { SOURCE: 'https://cdn.discordapp.com/expired.mp4' } },
+    resolveLocalModsVideoPath: () => '/packaged/demo.mp4',
+    getLocalModsVideoPublicUrl: () => null,
+  });
+  vm.runInContext(normalize + '\n' + resolver, context);
+  const signed = 'https://cdn.discordapp.com/attachments/123/456/demo.mp4?ex=abc&is=def&hm=signature';
+  assert.equal(context.normalizeDiscordCdnVideoUrl(signed), signed);
+  // A packaged upload needs no public server URL and must not fall back to an expired link.
+  assert.equal(await context.resolveModsVideoUrl(null, { envVar: 'SOURCE' }), null);
+});
