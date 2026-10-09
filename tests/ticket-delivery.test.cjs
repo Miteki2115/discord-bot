@@ -82,7 +82,7 @@ test('concurrent payments sum exactly once and over-delivery is rejected', async
   await manager.change(f.channel, 'nadalem', '1m', '5');
   const completed = deliverySummary(f.saved().ticket);
   assert.match(completed, /100%/);
-  assert.ok(completed.endsWith('🔵'.repeat(18) + ' **100%**'));
+  assert.ok(completed.endsWith('`' + '━'.repeat(36) + '` **100%**'));
   assert.ok(!completed.includes('Postęp:') && !completed.includes('Cała kwota'));
 });
 
