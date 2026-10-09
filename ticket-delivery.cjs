@@ -10,8 +10,8 @@ function parseDeliveryAmount(raw) {
 function deliverySummary(state) {
   const format = n => n.toLocaleString('pl-PL');
   const percent = Math.floor(state.delivered / state.total * 100);
-  const filled = Math.floor(state.delivered / state.total * 36);
-  const progress = '━'.repeat(filled) + '─'.repeat(36 - filled);
+  const filled = Math.floor(state.delivered / state.total * 28);
+  const progress = '━'.repeat(filled) + '─'.repeat(28 - filled);
   return [
     `> \`💰\` × **Do przekazania łącznie:** \`${format(state.total)}$\``,
     `> \`✅\` × **Przekazano:** \`${format(state.delivered)}$\``,
