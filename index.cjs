@@ -846,31 +846,32 @@ const MODS_VIDEO_FILES = [
     key: "no_entities",
     label: "No_entities (1440x2560)",
     modName: "NoEntities",
-    filename: "No_entities.mov",
-    filenameAliases: ["No_entities.mp4"],
-    localPath: path.join(__dirname, "attached_assets", "No_entities.mov"),
+    filename: "No_entities.mp4",
+    filenameAliases: ["No_entities.mov"],
+    localPath: path.join(__dirname, "attached_assets", "No_entities.mp4"),
     envVar: "MODS_VIDEO_URL_NO_ENTITIES",
   },
   {
     key: "sprawdz_procenty",
     label: "Sprawdz_procenty",
     modName: "SprawdzProcenty",
-    filename: "Sprawdz_procenty.mov",
-    filenameAliases: ["Sprawdz_procenty.mp4"],
-    localPath: path.join(__dirname, "attached_assets", "Sprawdz_procenty.mov"),
+    filename: "Sprawdz_procenty.mp4",
+    filenameAliases: ["Sprawdz_procenty.mov"],
+    localPath: path.join(__dirname, "attached_assets", "Sprawdz_procenty.mp4"),
     envVar: "MODS_VIDEO_URL_SPRAWDZ_PROCENTY",
   },
   {
     key: "auto_dzwignia",
     label: "Auto_dźwignia",
     modName: "AutoDzwignia",
-    filename: "Auto_dźwignia.mov",
+    filename: "Auto_dzwignia.mp4",
     filenameAliases: [
+      "Auto_dźwignia.mov",
       "Auto_dźwignia (1).mov",
       "Auto_dzwignia.mov",
       "Auto_dzwignia (1).mov",
     ],
-    localPath: path.join(__dirname, "attached_assets", "Auto_dźwignia.mov"),
+    localPath: path.join(__dirname, "attached_assets", "Auto_dzwignia.mp4"),
     envVar: "MODS_VIDEO_URL_AUTO_DZWIGNIA",
     defaultUrl:
       "https://cdn.discordapp.com/attachments/1350603811512909914/1477659247511605340/Auto_dzwignia.mov?ex=69a590ea&is=69a43f6a&hm=045a8441610b16e22135e2a267ba139021cd498791c71861627d4dc486506284",
@@ -879,9 +880,9 @@ const MODS_VIDEO_FILES = [
     key: "auto_dripstone",
     label: "Auto_Dripstone",
     modName: "AutoDripstone",
-    filename: "Auto_Dripstone.mov",
-    filenameAliases: ["Auto_Dripstone.mp4"],
-    localPath: path.join(__dirname, "attached_assets", "Auto_Dripstone.mov"),
+    filename: "Auto_Dripstone.mp4",
+    filenameAliases: ["Auto_Dripstone.mov"],
+    localPath: path.join(__dirname, "attached_assets", "Auto_Dripstone.mp4"),
     envVar: "MODS_VIDEO_URL_AUTO_DRIPSTONE",
     defaultUrl:
       "https://cdn.discordapp.com/attachments/1350603811512909914/1477659253664780402/Auto_Dripstone.mov?ex=69a590eb&is=69a43f6b&hm=51a15faf631c567393b82b6fcc017661cb20775ddd517b723100456f914b1fed",
@@ -6175,20 +6176,8 @@ function isHttpUrl(value) {
 
 function normalizeDiscordCdnVideoUrl(rawUrl) {
   const value = (rawUrl || "").toString().trim();
-  if (!isHttpUrl(value)) return value;
-  try {
-    const u = new URL(value);
-    const host = u.hostname.toLowerCase();
-    const isDiscordCdn =
-      host.endsWith("discordapp.com") || host.endsWith("discord.com");
-    const isAttachmentPath = u.pathname.includes("/attachments/");
-    if (isDiscordCdn && isAttachmentPath) {
-      return `${u.protocol}//${u.host}${u.pathname}`;
-    }
-    return value;
-  } catch {
-    return value;
-  }
+  // Preserve signed attachment URLs; stripping ex/is/hm breaks direct retrieval.
+  return value;
 }
 
 function isDiscordAttachmentUrl(rawUrl) {
@@ -6440,6 +6429,9 @@ async function resolveModsVideoUrl(guild, videoCfg, options = {}) {
   const allowSlowScan = options.allowSlowScan !== false;
 
   if (!videoCfg) return null;
+
+  // Packaged recordings are the stable source, ahead of expired CDN links.
+  if (resolveLocalModsVideoPath(videoCfg)) return getLocalModsVideoPublicUrl(videoCfg);
 
   const fromEnv = normalizeDiscordCdnVideoUrl(
     (process.env[videoCfg.envVar] || "").trim(),
@@ -8830,11 +8822,11 @@ async function handleButtonInteraction(interaction) {
     const seenUrls = new Set();
 
     const addResolvedVideo = (videoCfg, url, labelFallback = "Nagranie") => {
-      if (!isHttpUrl(url)) return;
+      if (!isHttpUrl(url) && !resolveLocalModsVideoPath(videoCfg)) return;
       const key = videoCfg?.key ? `key:${videoCfg.key}` : `url:${url}`;
-      if (seenKeys.has(key) || seenUrls.has(url)) return;
+      if (seenKeys.has(key) || (url && seenUrls.has(url))) return;
       seenKeys.add(key);
-      seenUrls.add(url);
+      if (url) seenUrls.add(url);
       resolvedVideos.push({
         videoCfg: videoCfg || null,
         url,
