@@ -2267,6 +2267,32 @@ client.on(Events.GuildMemberAdd, async (member) => {
 const supabaseUrl = process.env.SUPABASE_URL || 'https://your-project.supabase.co';
 const supabaseKey = process.env.SUPABASE_ANON_KEY || 'your-anon-key';
 const supabase = createClient(supabaseUrl, supabaseKey);
+const { createTicketDelivery, deliverySummary } = require("./ticket-delivery.cjs");
+const ticketDelivery = createTicketDelivery({
+  load: async () => {
+    const { data, error } = await supabase.from('bot_state').select('data').eq('id', 3).single();
+    if (error && error.code !== 'PGRST116') throw error;
+    return data?.data || {};
+  },
+  save: async data => {
+    const { error } = await supabase.from('bot_state').upsert({ id: 3, data, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+    if (error) throw error;
+  },
+  payload: (state, guildId) => {
+    const container = new ContainerBuilder().setAccentColor(state.delivered === state.total ? 0x57F287 : COLOR_BLUE);
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('```💰 New Shop × REALIZACJA ZAMÓWIENIA```'));
+    container.addSeparatorComponents(new SeparatorBuilder().setDivider(true));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(deliverySummary(state)));
+    appendBrandFooterToContainer(container, guildId);
+    return { components: [container], flags: MessageFlags.IsComponentsV2, allowedMentions: { parse: [] } };
+  },
+});
+client.on(Events.MessageCreate, message => {
+  ticketDelivery.onMessage(message).catch(error => console.error('[ile-brakuje] Przesunięcie panelu:', error));
+});
+client.on(Events.ChannelDelete, channel => {
+  ticketDelivery.remove(channel.id).catch(error => console.error('[ile-brakuje] Usunięcie licznika:', error));
+});
 
 // Prefer Persistent Disk on Render, fallback to local file (tylko jako backup)
 const STORE_FILE = process.env.STORE_FILE
@@ -5987,6 +6013,13 @@ const commands = [
     .setName("rozliczeniezakoncz")
     .setDescription("Wyślij podsumowanie rozliczeń (tylko właściciel)")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName("ile-brakuje")
+    .setDescription("Zliczaj przekazaną kwotę i pokaż, ile zostało do przekazania")
+    .addStringOption(option => option.setName("akcja").setDescription("Ustaw całość lub dolicz przekazaną kwotę").setRequired(true)
+      .addChoices({ name: "Start — ustaw całą kwotę", value: "start" }, { name: "Nadałem — dolicz przekazaną kwotę", value: "nadalem" }))
+    .addStringOption(option => option.setName("wartosc").setDescription("Kwota, np. 2m, 570k lub 2000000").setRequired(true))
     .toJSON(),
   new SlashCommandBuilder()
     .setName("wezwij")
@@ -9727,6 +9760,23 @@ async function handleSlashCommand(interaction) {
   }
 
   switch (commandName) {
+    case "ile-brakuje": {
+      if (!isTicketChannel(interaction.channel)) {
+        await interaction.reply({ content: "Ta komenda działa tylko na tickecie.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      try {
+        const state = await ticketDelivery.change(interaction.channel, interaction.options.getString("akcja", true), interaction.options.getString("wartosc", true), interaction.id);
+        await interaction.editReply({ content: `✅ Zapisano. Przekazano: ${state.delivered.toLocaleString('pl-PL')}$. Pozostało: ${(state.total - state.delivered).toLocaleString('pl-PL')}$.` });
+      } catch (error) {
+        console.error('[ile-brakuje] Zmiana licznika:', error);
+        await interaction.editReply({ content: error.deliverySaved
+          ? "Kwota została zapisana, ale panelu nie udało się odświeżyć. Nie wpisuj ponownie tej samej wpłaty. Sprawdź uprawnienia bota do wiadomości."
+          : `❌ ${error instanceof Error ? error.message : 'Nie udało się zapisać licznika w bazie. Spróbuj ponownie.'}` });
+      }
+      return;
+    }
     case "panel-wyslij":
       await handlePanelWyslijCommand(interaction);
       break;

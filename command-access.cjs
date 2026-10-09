@@ -3,7 +3,7 @@ const SUSPENDED_ROLE_ID = "1537090439239442483";
 const SELLER_COMMANDS = new Set([
   "ticket-zakoncz", "wydane", "ustawienia", "anonim",
   "zamknij-z-powodem", "zamknij", "dodaj", "przejmij", "odprzejmij",
-  "znajdz-ticket", "rozliczenie", "wezwij", "help", "ostrzezenia", "warns",
+  "znajdz-ticket", "rozliczenie", "wezwij", "help", "ostrzezenia", "warns", "ile-brakuje",
 ]);
 
 function isGuildOwner(interaction) {
