@@ -6301,6 +6301,8 @@ function getModsVideoConfigByFilename(filename) {
   return null;
 }
 
+const { buildModVideoPreview } = require("./mod-video-preview.cjs");
+
 function getModsVideoCaption(videoCfg, fallbackName = "Nagranie") {
   const arrowEmoji = "<a:arrowwhite:1491476759290449984>";
   const safeName = (videoCfg?.modName || fallbackName)
@@ -8879,21 +8881,15 @@ async function handleButtonInteraction(interaction) {
       let sentAtLeastOneVideo = false;
       let firstResponseSent = false;
 
-      const sendVideoMessage = async ({ content, files }) => {
+      const sendVideoMessage = async (payload) => {
         if (!firstResponseSent) {
-          await interaction.editReply({
-            content,
-            files,
-            embeds: [],
-            components: [],
-          });
+          await interaction.editReply(payload);
           firstResponseSent = true;
           return;
         }
         await interaction.followUp({
-          content,
-          files,
-          flags: [MessageFlags.Ephemeral],
+          ...payload,
+          flags: payload.flags | MessageFlags.Ephemeral,
         });
       };
 
@@ -8923,10 +8919,9 @@ async function handleButtonInteraction(interaction) {
             });
 
             try {
-              await sendVideoMessage({
-                content: caption,
-                files: [attachment],
-              });
+              await sendVideoMessage(buildModVideoPreview(
+                caption, `attachment://${attachment.name}`, [attachment],
+              ));
               sentAtLeastOneVideo = true;
               sentThisVideo = true;
               continue;
@@ -8939,12 +8934,10 @@ async function handleButtonInteraction(interaction) {
           }
         }
 
-        // Fallback: jeśli lokalny plik jest niedostępny/za duży, wyślij caption + link.
+        // Reference remote media explicitly; ephemeral replies don't unfurl plain links.
         if (!sentThisVideo && isHttpUrl(video.url)) {
           try {
-            await sendVideoMessage({
-              content: `${caption}\n${video.url}`,
-            });
+            await sendVideoMessage(buildModVideoPreview(caption, video.url));
             sentAtLeastOneVideo = true;
             sentThisVideo = true;
           } catch (err) {
