@@ -9,13 +9,15 @@ function parseDeliveryAmount(raw) {
 
 function deliverySummary(state) {
   const format = n => n.toLocaleString('pl-PL');
+  const percent = Math.floor(state.delivered / state.total * 100);
+  const filled = Math.floor(state.delivered / state.total * 10);
+  const progress = '🟩'.repeat(filled) + '⬜'.repeat(10 - filled);
   return [
-    `> 💰 × **Do przekazania łącznie:** \`${format(state.total)}$\``,
-    `> ✅ × **Przekazano:** \`${format(state.delivered)}$\``,
-    `> ⏳ × **Pozostało:** \`${format(state.total - state.delivered)}$\``,
-    '',
-    state.delivered === state.total ? '**✅ Cała kwota została przekazana.**'
-      : `Postęp: **${Math.floor(state.delivered / state.total * 100)}%**`,
+    `> \`💰\` × **Do przekazania łącznie:** \`${format(state.total)}$\``,
+    `> \`✅\` × **Przekazano:** \`${format(state.delivered)}$\``,
+    `> \`⏳\` × **Pozostało:** \`${format(state.total - state.delivered)}$\``,
+    `> **Postęp:** ${progress} **${percent}%**`,
+    ...(state.delivered === state.total ? ['> `✅` × **Cała kwota została przekazana.**'] : []),
   ].join('\n');
 }
 
