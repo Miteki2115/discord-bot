@@ -2279,7 +2279,7 @@ const ticketDelivery = createTicketDelivery({
     if (error) throw error;
   },
   payload: (state, guildId) => {
-    const container = new ContainerBuilder().setAccentColor(state.delivered === state.total ? 0x57F287 : COLOR_BLUE);
+    const container = new ContainerBuilder().setAccentColor(COLOR_BLUE);
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent('```💰 New Shop × REALIZACJA ZAMÓWIENIA```'));
     container.addSeparatorComponents(new SeparatorBuilder().setDivider(true));
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(deliverySummary(state)));

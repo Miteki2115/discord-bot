@@ -80,7 +80,10 @@ test('concurrent payments sum exactly once and over-delivery is rejected', async
   assert.equal(f.saved().ticket.delivered, 1000000);
   await assert.rejects(manager.change(f.channel, 'nadalem', '2m', '4'), /przekracza/);
   await manager.change(f.channel, 'nadalem', '1m', '5');
-  assert.match(deliverySummary(f.saved().ticket), /Cała kwota/);
+  const completed = deliverySummary(f.saved().ticket);
+  assert.match(completed, /100%/);
+  assert.ok(completed.endsWith('🔵'.repeat(18) + ' **100%**'));
+  assert.ok(!completed.includes('Postęp:') && !completed.includes('Cała kwota'));
 });
 
 test('database failure cannot acknowledge a payment or alter the saved sum', async () => {
