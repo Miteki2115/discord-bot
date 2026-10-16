@@ -7330,7 +7330,10 @@ function trackChatCommandCompletion(interaction) {
         // krótkiego Promise.race, bo ono nie anuluje żądania i wcześniej uruchamiało
         // równoległe editReply/followUp oraz surowe webhooki.
         const result = await original(...args);
-        if (!isDeferredAck) finalized = true;
+        // deferUpdate acknowledges an existing component message. There is no
+        // deferred reply to complete; editing its V2 content as a fallback can
+        // fail with HTTP 400 or target a message the handler just deleted.
+        if (!isDeferredAck || methodName === "deferUpdate") finalized = true;
         setInteractionDiagnostic(interaction, `${methodName}-success`);
         return result;
       } catch (error) {
@@ -8666,14 +8669,14 @@ async function handleButtonInteraction(interaction) {
     // Lock immediately using processing flag to prevent double/triple-click concurrency
     ticketData.processing = true;
 
-    await interaction.deferUpdate();
-
     try {
+      await interaction.deferUpdate();
       await closeTicketAnonymously(interaction.channel, interaction.guild, interaction.user.id);
     } catch (err) {
       // Re-enable if closing failed
       ticketData.processing = false;
       console.error("Błąd przy zamykaniu ticketu przez przycisk anonimowo:", err);
+      if (!interaction.deferred && !interaction.replied) throw err;
       await interaction.followUp({
         content: `> \`❌\` Wystąpił błąd: ${err.message}`,
         flags: [MessageFlags.Ephemeral]
