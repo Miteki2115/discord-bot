@@ -51,11 +51,33 @@ function createTicketCategoryManager({ categoryMap, templates, channelType, flag
     map[key] = category.id;
     categoryMap.set(guild.id, map);
   }
+  async function orderCategories(guild, channels) {
+    const rank = new Map(Object.keys(DEFINITIONS).map((key, index) => [key, index]));
+    const categories = [...channels.values()].filter(c => c?.type === channelType.GuildCategory)
+      .sort((a, b) => (a.rawPosition ?? a.position ?? 0) - (b.rawPosition ?? b.position ?? 0)
+        || a.id.localeCompare(b.id));
+    const tickets = categories.filter(c => rank.has(keyFor(guild, c.id)));
+    if (tickets.length < 2) return;
+    tickets.sort((a, b) => rank.get(keyFor(guild, a.id)) - rank.get(keyFor(guild, b.id)));
+    // Keep the block where ticket categories already begin. Unrelated
+    // categories retain their relative order, including those above it.
+    const anchor = categories.findIndex(c => rank.has(keyFor(guild, c.id)));
+    const others = categories.filter(c => !rank.has(keyFor(guild, c.id)));
+    const desired = [...others.slice(0, anchor), ...tickets, ...others.slice(anchor)];
+    if (desired.every((c, index) => c.id === categories[index].id)) return;
+    await guild.channels.setPositions(desired.map((c, position) => ({ channel: c.id, position })));
+    for (const category of tickets) remember(guild, keyFor(guild, category.id), category);
+    console.log(`[ticket-category] Kolejnosc kategorii uporzadkowana: ${guild.id}`);
+  }
   async function ensure(guild, rawKey, channels) {
     const key = canonicalKey(rawKey);
     if (!DEFINITIONS[key]) throw new Error(`Nieznany typ kategorii ticketu: ${rawKey}`);
     const existing = [...channels.values()].find(c => c.type === channelType.GuildCategory && keyFor(guild, c.id) === key);
-    if (existing) { remember(guild, key, existing); return existing; }
+    if (existing) {
+      await orderCategories(guild, channels);
+      remember(guild, key, existing);
+      return existing;
+    }
     const saved = templates.get(guild.id)?.[key];
     const category = await guild.channels.create({
       name: saved?.name || DEFINITIONS[key][0], type: channelType.GuildCategory,
@@ -66,11 +88,14 @@ function createTicketCategoryManager({ categoryMap, templates, channelType, flag
       ], reason: "Pierwszy ticket w kategorii",
     });
     remember(guild, key, category);
+    channels.set(category.id, category);
+    await orderCategories(guild, channels);
     return category;
   }
   async function cleanupUnlocked(guild, onlyId = null) {
     // Pełny odczyt serwera: nigdy nie usuwamy kategorii na podstawie niepełnego cache.
     const channels = await guild.channels.fetch();
+    await orderCategories(guild, channels);
     const candidates = [...channels.values()].filter(c => c.type === channelType.GuildCategory && (!onlyId || c.id === onlyId) && keyFor(guild, c.id));
     for (const category of candidates) remember(guild, keyFor(guild, category.id), category);
     if (!candidates.length) return;

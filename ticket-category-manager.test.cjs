@@ -7,6 +7,11 @@ function fixture() {
   const actions = []; let serial = 0, saveOk = true, fetchOk = true, failTicket = false;
   const guild = { id: "guild", members: { me: { id: "bot" } }, channels: {
     cache,
+    setPositions: async positions => {
+      actions.push(["order", positions.map(p => p.channel)]);
+      for (const p of positions) server.get(p.channel).rawPosition = p.position;
+      return guild;
+    },
     fetch: async () => { if (!fetchOk) throw Error("fetch failed"); cache.clear(); for (const [id,c] of server) cache.set(id,c); return cache; },
     create: async options => {
       if (options.type === 0 && failTicket) throw Error("ticket failed");
@@ -105,4 +110,41 @@ test("new category IDs preserve purchase seller limits and private help tickets"
   assert(!source.includes("await guild.channels.create(createOptions)"));
   assert(source.includes("ticketCategoryTemplates: Object.fromEntries(ticketCategoryTemplates)"));
   assert(source.includes("botStateData.ticketCategoryTemplates"));
+});
+
+test("new purchase category joins ascending purchase block ahead of other tickets", async()=>{
+  const f=fixture();
+  f.add("info","INFORMACJE",4,null,{position:0});
+  f.add("low",DEFINITIONS["zakup-0-20"][0],4,null,{position:1});
+  f.add("high",DEFINITIONS["zakup-100-200"][0],4,null,{position:2});
+  f.add("help",DEFINITIONS.inne[0],4,null,{position:3});
+  f.add("other","SPOLECZNOSC",4,null,{position:4});
+  // Discord puts a category without a saved position at the bottom.
+  const create=f.guild.channels.create;
+  f.guild.channels.create=options=>create({...options,position:options.position??99});
+  const ticket=await f.manager.create(f.guild,"zakup-20-50",{name:"anarchia-lf-blik",type:0});
+  const ordered=[...f.server.values()].filter(c=>c.type===4).sort((a,b)=>a.rawPosition-b.rawPosition);
+  assert.deepEqual(ordered.map(c=>c.id),["info","low",ticket.parentId,"high","help","other"]);
+  assert.equal(f.actions.filter(a=>a[0]==="order").length,1);
+  assert(f.actions.filter(a=>a[0]==="order")[0][1].every(id=>f.server.get(id).type===4));
+});
+
+test("startup repairs scattered categories without changing ticket parents or permissions",async()=>{
+  const f=fixture();
+  f.add("info","INFORMACJE",4,null,{position:0});
+  f.add("help",DEFINITIONS.inne[0],4,null,{position:1});
+  f.add("other","SPOLECZNOSC",4,null,{position:2});
+  f.add("high",DEFINITIONS["zakup-100-200"][0],4,null,{position:3});
+  f.add("low",DEFINITIONS["zakup-0-20"][0],4,null,{position:4});
+  for(const id of ["help","high","low"]) f.add(`ticket-${id}`,`ticket-${id}`,0,id);
+  const permissions=f.server.get("low").permissionOverwrites;
+  await f.manager.cleanup(f.guild);
+  const order=()=>[...f.server.values()].filter(c=>c.type===4).sort((a,b)=>a.rawPosition-b.rawPosition).map(c=>c.id);
+  assert.deepEqual(order(),["info","low","high","help","other"]);
+  assert.equal(f.server.get("ticket-low").parentId,"low");
+  assert.equal(f.server.get("low").permissionOverwrites,permissions);
+  assert.equal(f.templates.get("guild")["zakup-0-20"].position,1);
+  const calls=f.actions.filter(a=>a[0]==="order").length;
+  await f.manager.cleanup(f.guild);
+  assert.equal(f.actions.filter(a=>a[0]==="order").length,calls);
 });
