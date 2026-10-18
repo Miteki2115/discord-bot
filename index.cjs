@@ -473,6 +473,12 @@ client.on(Events.MessageBulkDelete, (messages) => {
   }
 });
 
+client.on(Events.MessageUpdate, (oldMessage, message) => {
+  if (message?.channelId === REP_CHANNEL_ID && oldMessage?.content !== message?.content) {
+    invalidateSellerTicketCounts();
+  }
+});
+
 function getBrandFooterIconUrl() {
   return BRAND_FOOTER_ICON_URL;
 }
@@ -903,6 +909,22 @@ const modsVideoOrderRanks = new Map(
 // legit rep counter
 let legitRepCount = 15;
 const sellerTicketCounts = new Map(); // <userId, count>
+// Persisted counts are a fallback, never proof that this process read all +rep history.
+const sellerTicketCountCheckedAt = new Map();
+const sellerTicketCountRequests = new Map();
+const SELLER_TICKET_COUNT_TTL_MS = 5 * 60 * 1000;
+let sellerTicketCountRevision = 0;
+
+function invalidateSellerTicketCounts() {
+  sellerTicketCountRevision++;
+  sellerTicketCountCheckedAt.clear();
+}
+
+function creditSellerTicket(userId) {
+  const key = String(userId);
+  sellerTicketCountRevision++;
+  sellerTicketCounts.set(key, (sellerTicketCounts.get(key) || 0) + 1);
+}
 const DAILY_LEGIT_CHANNEL_ID = "1532859726033846292";
 const DAILY_LEGIT_TIME_ZONE = "Europe/Warsaw";
 let dailyLegitStats = createEmptyDailyLegitStats();
@@ -1024,18 +1046,33 @@ function formatTicketsPlural(count) {
 }
 
 async function getSellerTicketCount(userId, forceRecalculate = false) {
-  if (!forceRecalculate && sellerTicketCounts.has(userId)) {
+  userId = String(userId);
+  const checkedAt = sellerTicketCountCheckedAt.get(userId);
+  if (!forceRecalculate && checkedAt !== undefined &&
+      Date.now() - checkedAt < SELLER_TICKET_COUNT_TTL_MS) {
     return sellerTicketCounts.get(userId);
   }
+  if (sellerTicketCountRequests.has(userId)) return sellerTicketCountRequests.get(userId);
+  const request = recalculateSellerTicketCount(userId);
+  sellerTicketCountRequests.set(userId, request);
+  try {
+    return await request;
+  } finally {
+    sellerTicketCountRequests.delete(userId);
+  }
+}
 
+async function recalculateSellerTicketCount(userId) {
+  const revision = sellerTicketCountRevision;
   const channel = await client.channels.fetch(REP_CHANNEL_ID).catch(() => null);
   if (!channel?.isTextBased?.()) {
-    return sellerTicketCounts.get(userId) || 0;
+    throw new Error("Nie można odczytać kanału +rep. Licznik nie został zmieniony.");
   }
 
-  let count = 0;
+  const countedMessageIds = new Set();
   let before;
   const targetUser = await client.users.fetch(userId).catch(() => null);
+  if (!targetUser) throw new Error("Nie można potwierdzić nicku sprzedawcy. Licznik nie został zmieniony.");
   const sellerAliases = new Set(
     [targetUser?.username, targetUser?.globalName]
       .filter(Boolean)
@@ -1056,22 +1093,33 @@ async function getSellerTicketCount(userId, forceRecalculate = false) {
         const sellerMention = sellerToken.match(/^<@!?(\d+)>$/);
         const sellerId = sellerMention?.[1] || null;
         const sellerAlias = sellerToken.toLocaleLowerCase("pl-PL");
-        if (sellerId === String(userId) || (!sellerId && sellerAliases.has(sellerAlias))) count++;
+        if (sellerId === userId || (!sellerId && sellerAliases.has(sellerAlias))) countedMessageIds.add(message.id);
       }
 
-      before = batch.last()?.id;
-      if (batch.size < 100 || !before) break;
+      const nextBefore = batch.last()?.id;
+      if (batch.size < 100) break;
+      if (!nextBefore || (before && BigInt(nextBefore) >= BigInt(before))) {
+        throw new Error("Historia +rep nie przesuwa się do starszych wiadomości.");
+      }
+      before = nextBefore;
     }
   } catch (error) {
     console.error("Error fetching rep channel messages for getSellerTicketCount:", error);
+    throw error;
   }
 
+  if (revision !== sellerTicketCountRevision) {
+    throw new Error("Historia +rep zmieniła się podczas przeliczania. Spróbuj ponownie.");
+  }
+  const count = countedMessageIds.size;
   sellerTicketCounts.set(userId, count);
+  sellerTicketCountCheckedAt.set(userId, Date.now());
   scheduleSavePersistentState();
   return count;
 }
 
 async function handleDeletedLegitRepMessage(message) {
+  if (message?.channelId === REP_CHANNEL_ID) invalidateSellerTicketCounts();
   if (!legitRepHistoryInitialized || message?.channelId !== REP_CHANNEL_ID) return;
   if (!legitRepMessageIds.delete(message.id)) return;
 
@@ -18918,8 +18966,7 @@ async function closeTicketAnonymously(channel, guild, executorId) {
   console.log(`[anonim] +rep wystawione przez bota, licznik: ${legitRepCount}`);
 
   if (ticketData.commandUserId) {
-    const current = sellerTicketCounts.get(ticketData.commandUserId) || 0;
-    sellerTicketCounts.set(ticketData.commandUserId, current + 1);
+    creditSellerTicket(ticketData.commandUserId);
   }
 
   if (String(ticketData.typ || "").toLowerCase() === "zakup" && String(ticketData.commandUserId) !== "1305200545979437129") {
@@ -19779,6 +19826,8 @@ async function handleUstawTicketySprzedawcyCommand(interaction) {
   }
 
   sellerTicketCounts.set(user.id, ilosc);
+  sellerTicketCountRevision++;
+  sellerTicketCountCheckedAt.set(user.id, Date.now());
   scheduleSavePersistentState(true);
 
   await interaction.reply({
@@ -19798,7 +19847,16 @@ async function handlePrzeliczTicketySprzedawcyCommand(interaction) {
 
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
   const user = interaction.options.getUser("uzytkownik");
-  const count = await getSellerTicketCount(user.id, true);
+  let count;
+  try {
+    count = await getSellerTicketCount(user.id, true);
+  } catch (error) {
+    console.error("[seller-counter] Przeliczenie nie zostało ukończone:", error);
+    await interaction.editReply({
+      content: "> `❌` × Nie udało się odczytać całej historii +rep. Licznik nie został zmieniony. Spróbuj ponownie.",
+    });
+    return;
+  }
 
   await interaction.editReply({
     content: `> \`✅\` × **Przeliczono z kanału +rep**: użytkownik <@${user.id}> ma łącznie **${count}** ${formatTicketsPlural(count)}.`,
@@ -20815,13 +20873,18 @@ async function ticketClaimCommon(interaction, channelId, opts = {}) {
       (typeof opts.publicClaimerLabel === "string" && opts.publicClaimerLabel.trim()) ||
       `<@${claimerId}>`;
 
-    const sellerCount = await getSellerTicketCount(claimerId);
+    const sellerCount = await getSellerTicketCount(claimerId).catch((error) => {
+      console.error("[seller-counter] Brak potwierdzonego licznika przy przejęciu:", error);
+      return null;
+    });
 
     const publicEmbed = new EmbedBuilder()
       .setColor(COLOR_BLUE)
       .setDescription(
         `> \`✅\` × Ticket został przejęty przez: ${publicClaimerLabel}\n` +
-        `> <a:card:1537186328867770488> × Wykonał on łącznie: __**${sellerCount}**__ ${formatTicketsPlural(sellerCount)}`
+        (sellerCount === null
+          ? "> <a:card:1537186328867770488> × Liczba wykonanych ticketów: chwilowo niedostępna."
+          : `> <a:card:1537186328867770488> × Wykonał on łącznie: __**${sellerCount}**__ ${formatTicketsPlural(sellerCount)}`)
       );
 
     if (ticketData.lastUnclaimMsgId) {
@@ -24457,8 +24520,7 @@ client.on(Events.MessageCreate, async (message) => {
       const pendingTicketData = pendingTicketEntry?.[1];
       const creditedSellerId = String(pendingTicketData?.commandUserId || "");
       if (creditedSellerId) {
-        const currentSellerCount = sellerTicketCounts.get(creditedSellerId) || 0;
-        sellerTicketCounts.set(creditedSellerId, currentSellerCount + 1);
+        creditSellerTicket(creditedSellerId);
         scheduleSavePersistentState();
       }
       const dailyTransactionAmount = isDailyLegitMoneyTransaction(pendingTicketData?.typ)
