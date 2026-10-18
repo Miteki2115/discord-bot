@@ -3744,19 +3744,20 @@ function buildFreeKasaResultPayload({ user, guildId, reward = null, loss = false
   };
 }
 
-async function sendFreeKasaPublicResult(interaction, payload) {
-  if (typeof interaction?.isMessageComponent === "function" && interaction.isMessageComponent()) {
-    if (!interaction.deferred && !interaction.replied) {
-      try { await interaction.deferUpdate(); } catch (e) { }
-    }
-    return interaction.channel?.send(payload).catch(() => null);
-  }
+async function sendFreeKasaPrivateResult(interaction, payload) {
+  const existingFlags = Array.isArray(payload.flags)
+    ? payload.flags
+    : payload.flags == null ? [] : [payload.flags];
+  const privatePayload = { ...payload, flags: [...existingFlags, MessageFlags.Ephemeral] };
 
+  // Only a private deferred reply is safe to edit; deferUpdate owns the public panel.
+  if (interaction?.deferred && interaction.ephemeral === true) {
+    return interaction.editReply(payload);
+  }
   if (interaction?.deferred || interaction?.replied) {
-    return interaction.followUp(payload).catch(() => null);
+    return interaction.followUp(privatePayload);
   }
-
-  return interaction.reply(payload).catch(() => null);
+  return interaction.reply(privatePayload);
 }
 
 async function handleFreeKasaCommand(interaction) {
@@ -3832,17 +3833,14 @@ async function handleFreeKasaCommand(interaction) {
   freeKasaCooldowns.set(user.id, now);
   scheduleSavePersistentState(true);
 
-  try {
-    await interaction.deferUpdate();
-  } catch (e) { }
+  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
   const reward = pickFreeKasaReward();
   const retryTimestamp = Math.floor((now + FREE_KASA_COOLDOWN_MS) / 1000);
 
   if (!reward) {
-    await sendFreeKasaPublicResult(interaction,
+    await sendFreeKasaPrivateResult(interaction,
       buildFreeKasaResultPayload({ user, guildId, loss: true, retryTimestamp }));
-    await refreshFreeKasaInstruction(channel);
     return;
   }
 
@@ -3882,9 +3880,8 @@ async function handleFreeKasaCommand(interaction) {
       dmDelivered = false;
     }
 
-    await sendFreeKasaPublicResult(interaction,
+    await sendFreeKasaPrivateResult(interaction,
       buildFreeKasaResultPayload({ user, guildId, reward }));
-    await refreshFreeKasaInstruction(channel);
 
     if (!dmDelivered) {
       await interaction.followUp({
@@ -3915,9 +3912,8 @@ async function handleFreeKasaCommand(interaction) {
     dmDelivered = false;
   }
 
-  await sendFreeKasaPublicResult(interaction,
+  await sendFreeKasaPrivateResult(interaction,
     buildFreeKasaResultPayload({ user, guildId, reward }));
-  await refreshFreeKasaInstruction(channel);
 
   if (!dmDelivered) {
     await interaction.followUp({
