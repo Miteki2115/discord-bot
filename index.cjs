@@ -3811,7 +3811,8 @@ async function handleFreeKasaCommand(interaction) {
     await interaction.reply({
       content:
         "> `❌` × Aby **wylosować nagrodę**, ustaw status **`.gg/newshop`** lub **`discord.gg/newshop`**\n" +
-        "> `☁️` × Kliknij **profil** i szarą chmurkę obok nicku. Status musi być **aktywny**. Podgląd masz **na dole**.",
+        "> `☁️` × Kliknij **profil** i szarą chmurkę obok nicku. Status musi być **aktywny**." +
+          (statusGuideAttachment ? " Podgląd masz **na dole**." : ""),
       embeds: statusGuideEmbed ? [statusGuideEmbed] : undefined,
       files: statusGuideAttachment ? [statusGuideAttachment] : undefined,
       flags: [MessageFlags.Ephemeral],
