@@ -3267,7 +3267,7 @@ function buildFreeKasaInstructionPayload(guildId = null) {
     "```",
     "💰 NEW SHOP × free kasa",
     "```",
-    "### `📌` × Ustaw w statusie `.gg/newshop`",
+    "### `📌` × Ustaw w statusie `.gg/newshop` lub `discord.gg/newshop`",
     "`⏰` × Masz **1** próbę co **12** godzin",
     "`📩` × Nagrodę odebrać będziesz mógł od **1** zaproszenia!",
     "",
@@ -3612,7 +3612,7 @@ function buildFreeKasaInstructionPayload(guildId = null) {
   container.addSeparatorComponents(new SeparatorBuilder().setDivider(true));
 
   const rawBody = [
-    "### `📌` × Ustaw w statusie `.gg/newshop`",
+    "### `📌` × Ustaw w statusie `.gg/newshop` lub `discord.gg/newshop`",
     "`⏰` × Masz **1** próbę co **12** godzin",
     "`📩` × Nagrodę odebrać będziesz mógł od **1** zaproszenia!",
     "",
@@ -3810,7 +3810,7 @@ async function handleFreeKasaCommand(interaction) {
 
     await interaction.reply({
       content:
-        "> `❌` × Aby **wylosować nagrodę**, ustaw status **`.gg/newshop`**\n" +
+        "> `❌` × Aby **wylosować nagrodę**, ustaw status **`.gg/newshop`** lub **`discord.gg/newshop`**\n" +
         "> `☁️` × Kliknij **profil** i szarą chmurkę obok nicku. Status musi być **aktywny**. Podgląd masz **na dole**.",
       embeds: statusGuideEmbed ? [statusGuideEmbed] : undefined,
       files: statusGuideAttachment ? [statusGuideAttachment] : undefined,
