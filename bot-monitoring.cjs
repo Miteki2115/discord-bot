@@ -8,6 +8,7 @@ const STYLES = {
   stop: ['⏹️', 'ZAMYKANIE PROCESU', 0xf6bd60],
   error: ['❌', 'BŁĄD ZADANIA', 0xf87171],
   warning: ['⚠️', 'OSTRZEŻENIE DISCORDA', 0xf6bd60],
+  runtimeWarning: ['⚠️', 'OSTRZEŻENIE ŚRODOWISKA', 0xf6bd60],
   fatal: ['🚨', 'AWARIA · PROCES ZOSTANIE ZAMKNIĘTY', 0xef4444],
   disconnect: ['🔌', 'UTRATA POŁĄCZENIA', 0xf87171],
   reconnect: ['🔄', 'PONOWNE ŁĄCZENIE', 0xf6bd60],
@@ -47,7 +48,9 @@ function createBotMonitoring({ client, events = {}, webhookUrl, monitorUrl, foot
     const ping = Number(client.ws?.ping);
     const ready = Boolean(client.isReady?.());
     recentErrors = recentErrors.filter(t => now() - t < 15 * 60 * 1000);
+    const reconnecting = [...shards.values()].some(state => state === 'down' || state === 'connecting');
     const status = !ready ? '🔴 Brak połączenia z Discordem'
+      : reconnecting ? '🟠 Ponowne łączenie z Discordem'
       : recentErrors.length || httpState === 'down' || ping > 200 ? '🟠 Wymaga uwagi' : '🟢 Działa prawidłowo';
     return { status, statusColor: !ready ? 0xf87171 : status.startsWith('🟠') ? 0xf6bd60 : 0x36d399,
       ping: Number.isFinite(ping) && ping >= 0 ? ping : null,
@@ -142,9 +145,13 @@ function createBotMonitoring({ client, events = {}, webhookUrl, monitorUrl, foot
   })();
 
   function captureError(...args) {
-    errorCount++; lastErrorTime = now(); recentErrors.push(now()); recentErrors = recentErrors.slice(-100);
     const detail = sanitize(args.map(a => a instanceof Error ? `${a.name}: ${a.message}\n${a.stack || ''}`
       : typeof a === 'string' ? a : util.inspect(a, { depth: 2 })).join(' '), secrets);
+    // Node prints process warnings through console.error; they are not failed tasks.
+    if (typeof args[0] === 'string' && /^\(node:\d+\) (?:\[[^\]\r\n]+\] )?\w*Warning:/.test(args[0])) {
+      return send('runtimeWarning', detail, { dedupeKey: `runtime-warning:${detail}` });
+    }
+    errorCount++; lastErrorTime = now(); recentErrors.push(now()); recentErrors = recentErrors.slice(-100);
     return send('error', detail, { dedupeKey: `error:${detail}` });
   }
   if (installConsole) console.error = (...args) => { originalError(...args); void captureError(...args); };

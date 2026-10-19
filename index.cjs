@@ -347,18 +347,34 @@ async function initializeCzyLegitCounter() {
   }
 
   const candidates = [];
-  const pinned = await channel.messages.fetchPinned().catch(() => null);
-  if (pinned) candidates.push(...pinned.values());
+  let before;
+  try {
+    while (true) {
+      const pinned = await channel.messages.fetchPins({ limit: 50, ...(before ? { before } : {}) });
+      candidates.push(...pinned.items.map((pin) => pin.message));
+      if (!pinned.hasMore) break;
+      const nextBefore = pinned.items.at(-1)?.pinnedTimestamp;
+      if (!Number.isFinite(nextBefore) || (before !== undefined && nextBefore >= before)) {
+        throw new Error("Nie można pobrać kolejnej strony przypiętych wiadomości.");
+      }
+      before = nextBefore;
+    }
+  } catch (error) {
+    console.warn("[czy-legit] Nie udało się pobrać wszystkich przypiętych wiadomości:", error);
+  }
 
   const recent = await channel.messages.fetch({ limit: 100 }).catch(() => null);
   if (recent) candidates.push(...recent.values());
 
   const uniqueCandidates = [...new Map(candidates.map((message) => [message.id, message])).values()];
-  const target = uniqueCandidates
-    .filter((message) =>
-      String(message.content || "").toUpperCase().includes(CZY_LEGIT_MESSAGE_MARKER),
-    )
-    .sort((a, b) => getCzyLegitReactionCount(b) - getCzyLegitReactionCount(a))[0];
+  const matchingCandidates = uniqueCandidates.filter((message) =>
+    String(message.content || "").toUpperCase().includes(CZY_LEGIT_MESSAGE_MARKER),
+  );
+  // fetchPins omits reactions. Fetch each matching message before choosing the counter.
+  const refreshedCandidates = await Promise.all(matchingCandidates.map((message) =>
+    channel.messages.fetch({ message: message.id, force: true }).catch(() => message),
+  ));
+  const target = refreshedCandidates.sort((a, b) => getCzyLegitReactionCount(b) - getCzyLegitReactionCount(a))[0];
 
   if (!target) {
     console.warn("[czy-legit] Kanał znaleziony, ale nie znaleziono wiadomości LEGIT SHOP w przypiętych ani ostatnich 100 wiadomościach.");
@@ -2114,6 +2130,7 @@ const FREE_KASA_TOTAL_WEIGHT = FREE_KASA_REWARD_POOL.reduce(
 
 // New maps for ticket close confirmation
 const pendingTicketClose = new Map(); // channelId -> { userId, ts }
+const ticketFinishInFlight = new Set();
 const ticketRepMessages = new Map(); // channelId or messageId -> repMessage string
 const closingTickets = new Set(); // channelId - currently being deleted, block re-close
 
@@ -17971,11 +17988,7 @@ async function handleAddUserToTicketCommand(interaction) {
 // ----------------- /ticket-zakoncz handler -----------------
 async function handleTicketZakonczCommand(interaction) {
   // Sprawdź czy właściciel lub sprzedawca
-  const isOwner = interaction.user.id === interaction.guild.ownerId;
-  const SELLER_ROLE_ID = "1350786945944391733";
-  const hasSellerRole = interaction.member.roles.cache.has(SELLER_ROLE_ID);
-
-  if (!isOwner && !hasSellerRole) {
+  if (!isGuildOwner(interaction) && !isActiveSeller(interaction)) {
     await interaction.reply({
       content: "> `❗` × Brak wymaganych uprawnień.",
       flags: [MessageFlags.Ephemeral],
@@ -17984,7 +17997,6 @@ async function handleTicketZakonczCommand(interaction) {
   }
 
   const channel = interaction.channel;
-  const ticketData = ticketOwners.get(channel.id) || null;
 
   // Sprawdź czy komenda jest używana w tickecie
   if (!isTicketChannel(channel)) {
@@ -17995,6 +18007,27 @@ async function handleTicketZakonczCommand(interaction) {
     return;
   }
 
+  // Acknowledge before owner lookup, database calls or Discord role synchronization.
+  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+  if (ticketFinishInFlight.has(channel.id)) {
+    await interaction.editReply({ content: "> `⏳` × Zakończenie tego ticketu jest już przetwarzane. Poczekaj na wynik." });
+    return;
+  }
+  if (pendingTicketClose.get(channel.id)?.awaitingRep) {
+    await interaction.editReply({ content: "> `ℹ️` × Ten ticket już oczekuje na legit check. Wzór znajduje się wyżej." });
+    return;
+  }
+  ticketFinishInFlight.add(channel.id);
+  try {
+    await finishTicketZakonczCommand(interaction);
+  } finally {
+    ticketFinishInFlight.delete(channel.id);
+  }
+}
+
+async function finishTicketZakonczCommand(interaction) {
+  const channel = interaction.channel;
+  const ticketData = ticketOwners.get(channel.id) || null;
   // Pobierz parametry
   const typ = interaction.options.getString("typ");
   const cena = interaction.options.getInteger("ile", true);
@@ -18004,37 +18037,10 @@ async function handleTicketZakonczCommand(interaction) {
   const ticketOwnerId = await resolveTicketOwnerId(channel);
 
   if (!ticketOwnerId) {
-    await interaction.reply({
+    await interaction.editReply({
       content: "> `❌` × **Nie udało się** zidentyfikować właściciela ticketu.",
-      flags: [MessageFlags.Ephemeral],
     });
     return;
-  }
-
-  // Automatycznie dodaj kwotę do wydatków klienta (ticketOwnerId) w Supabase, jeśli to zakup
-  if (typ === "zakup") {
-    const amount = parsePLN(formattedCena);
-    if (amount > 0) {
-      await db.addUserSpent(ticketOwnerId, amount, interaction.guildId || "default").catch((err) =>
-        console.error("Error automatically adding user spent on ticket-zakoncz:", err)
-      );
-      // Zapisz transakcję do historii zakupów
-      // Synchronizacja ról zakupowych klienta
-      await syncUserSpentRoles(interaction.guild, ticketOwnerId).catch((err) =>
-        console.error("Error syncing roles on ticket-zakoncz:", err)
-      );
-    }
-  }
-
-  // Zachowaj w historii obrotu zarówno zakupy, jak i sprzedaże.
-  if (typ === "zakup" || typ === "sprzedaż" || typ === "sprzedaz") {
-    await db.addUserPurchase(
-      ticketOwnerId,
-      cena,
-      serwer || "Brak",
-      typ,
-      interaction.guildId || "default",
-    ).catch((err) => console.error("Error saving shop transaction history:", err));
   }
 
   const legitRepChannelId = "1449840030947217529";
@@ -18057,12 +18063,6 @@ async function handleTicketZakonczCommand(interaction) {
     interaction.guild?.id || null
   );
 
-  // Ephemeral potwierdzenie dla sprzedawcy
-  await interaction.reply({
-    content: "`✅` × Poprawnie użyto komendy ticket zakończ.",
-    flags: [MessageFlags.Ephemeral],
-  });
-
   // Wyślij ping osobno nad embedem
   const pingMsg = await interaction.channel.send({
     content: `<@${ticketOwnerId}>`,
@@ -18075,6 +18075,48 @@ async function handleTicketZakonczCommand(interaction) {
   const sentRepMsg = await interaction.channel.send({
     content: repMessage,
   }).catch(() => null);
+
+  if (!sentEmbedMsg || !sentRepMsg) {
+    throw new Error("Nie udało się wysłać panelu lub wzoru legit checka na ticket.");
+  }
+
+  // Store the pending ticket before optional pings: the client can post +rep immediately.
+  pendingTicketClose.set(channel.id, {
+    userId: ticketOwnerId,
+    commandUserId: interaction.user.id,
+    commandUsername: interaction.user.username,
+    typ,
+    co: formattedCena,
+    serwer,
+    awaitingRep: true,
+    legitRepChannelId,
+    embedMessageId: sentEmbedMsg.id,
+    repTextMessageId: sentRepMsg.id,
+    repMessage,
+    ts: Date.now(),
+  });
+  ticketRepMessages.set(sentEmbedMsg.id, repMessage);
+  ticketRepMessages.set(channel.id, repMessage);
+  scheduleSavePersistentState();
+
+  // Only account for a completed handoff. A failed panel send must not charge again on retry.
+  if (typ === "zakup") {
+    const amount = parsePLN(formattedCena);
+    if (amount > 0) {
+      await db.addUserSpent(ticketOwnerId, amount, interaction.guildId || "default").catch((err) =>
+        console.error("Error automatically adding user spent on ticket-zakoncz:", err)
+      );
+      await syncUserSpentRoles(interaction.guild, ticketOwnerId).catch((err) =>
+        console.error("Error syncing roles on ticket-zakoncz:", err)
+      );
+    }
+  }
+  if (typ === "zakup" || typ === "sprzedaż" || typ === "sprzedaz") {
+    await db.addUserPurchase(
+      ticketOwnerId, cena, serwer || "Brak", typ, interaction.guildId || "default",
+    ).catch((err) => console.error("Error saving shop transaction history:", err));
+  }
+  await interaction.editReply({ content: "`✅` × Poprawnie użyto komendy ticket zakończ." });
 
   // Oznacz właściciela ticketu na kanałach do opinii/repa i usuń ping po chwili
   try {
@@ -18112,27 +18154,6 @@ async function handleTicketZakonczCommand(interaction) {
   } catch (err) {
     console.error("Nie udało się wysłać pingów:", err);
   }
-
-  // Zapisz informację o oczekiwaniu na +rep dla tego ticketu
-  pendingTicketClose.set(channel.id, {
-    userId: ticketOwnerId, // właściciel ticketu musi wysłać +rep
-    commandUserId: interaction.user.id, // osoba która użyła komendy
-    commandUsername: interaction.user.username, // nick osoby
-    typ: typ,
-    co: formattedCena,
-    serwer: serwer,
-    awaitingRep: true,
-    legitRepChannelId,
-    embedMessageId: sentEmbedMsg?.id || null,
-    repTextMessageId: sentRepMsg?.id || null,
-    repMessage: repMessage,
-    ts: Date.now()
-  });
-
-  if (sentEmbedMsg?.id) {
-    ticketRepMessages.set(sentEmbedMsg.id, repMessage);
-  }
-  ticketRepMessages.set(channel.id, repMessage);
 
   // Przenieś ticket do kategorii zrealizowanej
   try {

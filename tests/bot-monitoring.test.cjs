@@ -58,6 +58,30 @@ test('errors are counted, secrets removed and repeated warnings deduplicated', a
   assert.match(f.logger.snapshot().status, /Działa prawidłowo/);
 });
 
+test('Node deprecation warnings are logged separately without increasing task errors', async () => {
+  const f = fixture(); await f.logger.boot;
+  const warning = '(node:70) DeprecationWarning: The MessageManager#fetchPinned() method is deprecated. Use MessageManager#fetchPins() instead.';
+  await f.logger.captureError(warning);
+  await f.logger.captureError(warning);
+  assert.equal(f.logger.snapshot().errorCount, 0);
+  assert.equal(f.logger.snapshot().lastErrorTime, null);
+  assert.match(f.logger.snapshot().status, /Działa prawidłowo/);
+  assert.equal(f.calls.length, 2);
+  assert.match(f.calls.at(-1).body.embeds[0].title, /OSTRZEŻENIE ŚRODOWISKA/);
+  await f.logger.captureError(new Error('DeprecationWarning appeared in a failed task'));
+  assert.equal(f.logger.snapshot().errorCount, 1);
+  assert.match(f.calls.at(-1).body.embeds[0].title, /BŁĄD ZADANIA/);
+});
+
+test('reconnect status reflects the shard state even when the client still reports ready', async () => {
+  const f = fixture(); await f.logger.boot;
+  f.client.emit('shardReconnecting', 0);
+  assert.match(f.logger.snapshot().status, /Ponowne łączenie/);
+  f.client.emit('shardResume', 0, 2);
+  assert.match(f.logger.snapshot().status, /Działa prawidłowo/);
+  await f.logger.updateStatus();
+});
+
 test('webhook URLs and ping without connection are never misleading', () => {
   assert.equal(sanitize('https://discord.com/api/webhooks/123/abc'), '[WEBHOOK UKRYTY]');
   const f = fixture(); f.client.ws.ping = -1; f.client.isReady = () => false;
