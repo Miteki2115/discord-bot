@@ -23,7 +23,7 @@ function createDiscordRateLimitGate({ now = Date.now, fallbackMs = 60_000 } = {}
     }
     return delay;
   }
-  function observe(key, response, data) {
+  function observe(key, response, data, { globalOnly = false } = {}) {
     if (response.status !== 429) return 0;
     const header = response.headers?.get?.('retry-after');
     const seconds = [data?.retry_after, header, response.headers?.get?.('x-ratelimit-reset-after')]
@@ -34,6 +34,9 @@ function createDiscordRateLimitGate({ now = Date.now, fallbackMs = 60_000 } = {}
     const global = data?.global === true || response.headers?.get?.('x-ratelimit-global') === 'true' ||
       response.headers?.get?.('x-ratelimit-scope') === 'global' ||
       /blocked from accessing our API temporarily|exceeding global rate limits/i.test(data?.message || '');
+    // discord.js already queues individual REST buckets. Never promote a
+    // channel rename/category limit to a pause of unrelated bot operations.
+    if (globalOnly && !global) return 0;
     return block(key, ms > 0 ? ms + 100 : fallbackMs, global);
   }
   return { snapshot, assertAllowed, observe, block };

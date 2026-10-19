@@ -35,3 +35,27 @@ test('a successful request cannot erase a previously imposed global wait', () =>
   gate.block('interactions', 1000, true);
   assert.equal(gate.snapshot().global_retry_after_ms, 100100);
 });
+
+test('SDK channel/category limits never freeze every bot request after the global wait ends', () => {
+  let now = 1000;
+  const gate = createDiscordRateLimitGate({ now: () => now });
+  gate.block('bot-rest', 1000, true);
+  gate.observe('bot-rest', response({ 'retry-after': '600', 'x-ratelimit-scope': 'shared' }), undefined, { globalOnly: true });
+  now += 1001;
+  assert.doesNotThrow(() => gate.assertAllowed('bot-rest'));
+  assert.doesNotThrow(() => gate.assertAllowed('interaction-rest:interactions:42'));
+});
+
+test('global SDK limits still pause every producer', () => {
+  const gate = createDiscordRateLimitGate();
+  gate.observe('bot-rest', response({ 'retry-after': '60', 'x-ratelimit-global': 'true' }), undefined, { globalOnly: true });
+  assert.throws(() => gate.assertAllowed('bot-rest'));
+  assert.throws(() => gate.assertAllowed('monitoring'));
+});
+
+test('an individual interaction limit does not block a different interaction', () => {
+  const gate = createDiscordRateLimitGate();
+  gate.observe('interaction-rest:interactions:42', response({ 'retry-after': '10' }), { global: false });
+  assert.throws(() => gate.assertAllowed('interaction-rest:interactions:42'));
+  assert.doesNotThrow(() => gate.assertAllowed('interaction-rest:interactions:43'));
+});

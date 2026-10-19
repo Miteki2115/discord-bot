@@ -192,7 +192,8 @@ function isInteractionResponseRoute(route) {
 }
 
 async function directInteractionRestRequest(method, route, options = {}) {
-  discordRateLimit.assertAllowed('interactions');
+  const rateLimitKey = `interaction-rest:${String(route).split('/')[1]}:${String(route).split('/')[2]}`;
+  discordRateLimit.assertAllowed(rateLimitKey);
   const query = options.query ? `?${new URLSearchParams(options.query).toString()}` : "";
   const controller = new AbortController();
   const isInitialResponse = /^\/interactions\/\d+\/[^/]+\/callback$/.test(String(route || ""));
@@ -216,7 +217,7 @@ async function directInteractionRestRequest(method, route, options = {}) {
       }
     }
     if (!response.ok) {
-      const retryAfterMs = discordRateLimit.observe('interactions', response, data);
+      const retryAfterMs = discordRateLimit.observe(rateLimitKey, response, data);
       const error = new Error(
         `Discord interaction HTTP ${response.status} via ${new URL(DISCORD_API_BASE).hostname}`,
       );
@@ -253,7 +254,7 @@ function trackDiscordRestRateLimits(restClient) {
     if (data.global) discordRateLimit.block('bot-rest', data.retryAfter, true);
   });
   restClient.on('response', (_request, response) => {
-    discordRateLimit.observe('bot-rest', response);
+    discordRateLimit.observe('bot-rest', response, undefined, { globalOnly: true });
   });
 }
 trackDiscordRestRateLimits(client.rest);
