@@ -1085,13 +1085,20 @@ function formatTicketsPlural(count) {
   return "ticketów";
 }
 
-async function getSellerTicketCount(userId, forceRecalculate = false) {
+function getCachedSellerTicketCount(userId) {
   userId = String(userId);
   const checkedAt = sellerTicketCountCheckedAt.get(userId);
-  if (!forceRecalculate && checkedAt !== undefined &&
+  if (checkedAt !== undefined &&
       Date.now() - checkedAt < SELLER_TICKET_COUNT_TTL_MS) {
-    return sellerTicketCounts.get(userId);
+    return sellerTicketCounts.get(userId) ?? null;
   }
+  return null;
+}
+
+async function getSellerTicketCount(userId, forceRecalculate = false) {
+  userId = String(userId);
+  const cached = getCachedSellerTicketCount(userId);
+  if (!forceRecalculate && cached !== null) return cached;
   if (sellerTicketCountRequests.has(userId)) return sellerTicketCountRequests.get(userId);
   const request = recalculateSellerTicketCount(userId);
   sellerTicketCountRequests.set(userId, request);
@@ -20932,17 +20939,16 @@ async function ticketClaimCommon(interaction, channelId, opts = {}) {
       (typeof opts.publicClaimerLabel === "string" && opts.publicClaimerLabel.trim()) ||
       `<@${claimerId}>`;
 
-    const sellerCount = await getSellerTicketCount(claimerId).catch((error) => {
-      console.error("[seller-counter] Brak potwierdzonego licznika przy przejęciu:", error);
-      return null;
-    });
+    // Claim immediately. History pagination must never hold up the claim.
+    const sellerCount = getCachedSellerTicketCount(claimerId);
+    let claimMessageToRefresh = null;
 
     const publicEmbed = new EmbedBuilder()
       .setColor(COLOR_BLUE)
       .setDescription(
         `> \`✅\` × Ticket został przejęty przez: ${publicClaimerLabel}\n` +
         (sellerCount === null
-          ? "> <a:card:1537186328867770488> × Liczba wykonanych ticketów: chwilowo niedostępna."
+          ? "> <a:card:1537186328867770488> × Statystyki sprzedawcy: aktualizowanie…"
           : `> <a:card:1537186328867770488> × Wykonał on łącznie: __**${sellerCount}**__ ${formatTicketsPlural(sellerCount)}`)
       );
 
@@ -20965,6 +20971,7 @@ async function ticketClaimCommon(interaction, channelId, opts = {}) {
         ticketData.lastClaimMsgId = sent.id;
         ticketOwners.set(channelId, ticketData);
         scheduleSavePersistentState();
+        if (sellerCount === null) claimMessageToRefresh = sent;
       }
     } catch {
       // ignore
@@ -21011,6 +21018,11 @@ async function ticketClaimCommon(interaction, channelId, opts = {}) {
     if (!isBtn) {
       await interaction.deleteReply().catch(() => null);
     }
+    if (claimMessageToRefresh) {
+      setImmediate(() => {
+        void refreshTicketClaimStatistics(claimMessageToRefresh, channelId, claimerId, publicClaimerLabel);
+      });
+    }
     return { ok: true, reason: "claimed", channelId, claimedBy: claimerId };
   } catch (err) {
     console.error("Błąd przy przejmowaniu ticketu:", err);
@@ -21019,6 +21031,26 @@ async function ticketClaimCommon(interaction, channelId, opts = {}) {
   } finally {
     claimingInProgress.delete(channelId);
   }
+}
+
+async function refreshTicketClaimStatistics(message, channelId, claimerId, publicClaimerLabel) {
+  let count = null;
+  try {
+    count = await getSellerTicketCount(claimerId);
+  } catch (error) {
+    console.warn('[seller-counter] Odświeżenie statystyk w tle nie powiodło się:', error?.message || error);
+  }
+  const current = ticketOwners.get(channelId);
+  // Do not overwrite an unclaimed ticket or a newer seller's claim message.
+  if (current?.claimedBy !== claimerId || current?.lastClaimMsgId !== message.id) return;
+  const description = `> \`✅\` × Ticket został przejęty przez: ${publicClaimerLabel}\n` +
+    (count === null
+      ? "> <a:card:1537186328867770488> × Liczba wykonanych ticketów: chwilowo niedostępna."
+      : `> <a:card:1537186328867770488> × Wykonał on łącznie: __**${count}**__ ${formatTicketsPlural(count)}`);
+  await message.edit({
+    embeds: [new EmbedBuilder().setColor(COLOR_BLUE).setDescription(description)],
+    allowedMentions: { parse: [] },
+  }).catch(error => console.warn('[seller-counter] Nie udało się odświeżyć wiadomości przejęcia:', error?.message || error));
 }
 
 function getPingRolesForTicketType(ticketType) {

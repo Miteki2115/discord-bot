@@ -19,7 +19,7 @@ function fixture(fetchMessages, fetchUser = async () => ({ username: 'Kolczasty'
   });
   vm.runInContext(
     source.slice(source.indexOf('const sellerTicketCounts ='), source.indexOf('const DAILY_LEGIT_CHANNEL_ID =')) +
-    source.slice(source.indexOf('async function getSellerTicketCount('), source.indexOf('async function handleDeletedLegitRepMessage(')), context);
+    source.slice(source.indexOf('function getCachedSellerTicketCount('), source.indexOf('async function handleDeletedLegitRepMessage(')), context);
   return {
     context,
     counts: vm.runInContext('sellerTicketCounts', context),
