@@ -20907,25 +20907,8 @@ async function ticketClaimCommon(interaction, channelId, opts = {}) {
     }
 
     await ch.permissionOverwrites.set(permissionOverwrites);
-
-    // Usuń limity kategorii dla kanału
-    const limitCategories = [
-      "1449448705563557918", // limit 20
-      "1449448702925209651", // limit 50
-      "1449448686156255333", // limit 100
-      "1449448860517798061"  // limit 200
-    ];
-
-    for (const categoryId of limitCategories) {
-      const category = await client.channels.fetch(categoryId).catch(() => null);
-      if (category && category.type === ChannelType.GuildCategory) {
-        await category.permissionOverwrites.edit(ch.id, {
-          ViewChannel: false,
-          SendMessages: false,
-          ReadMessageHistory: false
-        }).catch(() => null);
-      }
-    }
+    // Explicit ticket overwrites above replace inherited limit-role access.
+    // Limit IDs are roles, so fetching them as channels only produced four 404s.
 
     ticketData.claimedBy = claimerId;
     ticketOwners.set(channelId, ticketData);
