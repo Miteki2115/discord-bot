@@ -1,0 +1,37 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { createDiscordRateLimitGate } = require('../discord-rate-limit.cjs');
+const response = headers => ({ status: 429, headers: { get: name => headers[name] ?? null } });
+
+test('reported global block pauses every producer even without a retry_after field', () => {
+  let now = 1000;
+  const gate = createDiscordRateLimitGate({ now: () => now });
+  gate.observe('interactions', response({}), { code: 0, message: 'You are being blocked from accessing our API temporarily due to exceeding global rate limits.' });
+  for (const key of ['interactions', 'monitoring', 'bot-rest']) {
+    assert.throws(() => gate.assertAllowed(key), error => error.status === 429 && error.localCooldown);
+  }
+  assert.equal(gate.snapshot().global_retry_after_ms, 60_000);
+  now += 60_001;
+  assert.doesNotThrow(() => gate.assertAllowed('interactions'));
+});
+
+test('Retry-After is respected, including fractional seconds and the longest header/body limit', () => {
+  const gate = createDiscordRateLimitGate({ now: () => 0 });
+  gate.observe('interactions', response({ 'retry-after': '5.5' }), { retry_after: 2, global: true });
+  assert.equal(gate.snapshot().global_retry_after_ms, 5600);
+});
+
+test('a resource webhook limit does not block independent bot interactions', () => {
+  const gate = createDiscordRateLimitGate();
+  gate.observe('monitoring', response({}), { retry_after: 10, global: false });
+  assert.throws(() => gate.assertAllowed('monitoring'));
+  assert.doesNotThrow(() => gate.assertAllowed('interactions'));
+});
+
+test('a successful request cannot erase a previously imposed global wait', () => {
+  const gate = createDiscordRateLimitGate({ now: () => 0 });
+  gate.observe('interactions', response({}), { retry_after: 100, global: true });
+  gate.observe('monitoring', { status: 200 }, {});
+  gate.block('interactions', 1000, true);
+  assert.equal(gate.snapshot().global_retry_after_ms, 100100);
+});

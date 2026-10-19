@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const util = require('node:util');
+const { createDiscordRateLimitGate } = require('./discord-rate-limit.cjs');
 
 const STYLES = {
   start: ['🚀', 'START PROCESU', 0x539eff],
@@ -32,7 +33,8 @@ function sanitize(value, secrets = []) {
 
 function createBotMonitoring({ client, events = {}, webhookUrl, monitorUrl, footer, store,
   env = process.env, fetchImpl = global.fetch, now = Date.now, timers = global,
-  installConsole = true, processRef = process, startTimers = true }) {
+  installConsole = true, processRef = process, startTimers = true,
+  rateLimitGate = createDiscordRateLimitGate({ now }) }) {
   const startedAt = now();
   const sessionId = crypto.randomUUID().slice(0, 8);
   const version = String(env.RENDER_GIT_COMMIT || env.BOT_VERSION || 'lokalna').slice(0, 12);
@@ -50,6 +52,7 @@ function createBotMonitoring({ client, events = {}, webhookUrl, monitorUrl, foot
     recentErrors = recentErrors.filter(t => now() - t < 15 * 60 * 1000);
     const reconnecting = [...shards.values()].some(state => state === 'down' || state === 'connecting');
     const status = !ready ? '🔴 Brak połączenia z Discordem'
+      : rateLimitGate.snapshot().global_retry_after_ms > 0 ? '🟠 Discord API ogranicza odpowiedzi (HTTP 429)'
       : reconnecting ? '🟠 Ponowne łączenie z Discordem'
       : recentErrors.length || httpState === 'down' || ping > 200 ? '🟠 Wymaga uwagi' : '🟢 Działa prawidłowo';
     return { status, statusColor: !ready ? 0xf87171 : status.startsWith('🟠') ? 0xf6bd60 : 0x36d399,
@@ -81,18 +84,25 @@ function createBotMonitoring({ client, events = {}, webhookUrl, monitorUrl, foot
   }
 
   async function request(url, method, body) {
+    rateLimitGate.assertAllowed('monitoring');
     const controller = new AbortController();
     const timeout = timers.setTimeout(() => controller.abort(), 4000);
     try {
       const response = await fetchImpl(url, { method, headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body), signal: controller.signal });
-      if (!response.ok) throw new Error(`Monitoring: HTTP ${response.status}`);
+      if (!response.ok) {
+        const data = response.status === 429 ? await response.json().catch(() => null) : null;
+        rateLimitGate.observe('monitoring', response, data);
+        throw new Error(`Monitoring: HTTP ${response.status}`);
+      }
       return await response.json();
     } finally { timers.clearTimeout(timeout); }
   }
 
   function send(kind, detail, { dedupeKey, editStatus = false } = {}) {
     if (!webhookUrl || queued >= 40) return Promise.resolve(false);
+    try { rateLimitGate.assertAllowed('monitoring'); }
+    catch (error) { if (error.localCooldown) return Promise.resolve(false); throw error; }
     const key = dedupeKey || (kind === 'status' ? null : `${kind}:${detail}`);
     if (key && lastEvents.has(key) && now() - lastEvents.get(key) < 60000) return Promise.resolve(false);
     if (key) lastEvents.set(key, now());
@@ -114,7 +124,7 @@ function createBotMonitoring({ client, events = {}, webhookUrl, monitorUrl, foot
         }
         if (editStatus && result?.id) statusMessageId = result.id;
         return true;
-      } catch (err) { originalError('[MONITORING]', sanitize(err.message, secrets)); return false; }
+      } catch (err) { if (!err.localCooldown) originalError('[MONITORING]', sanitize(err.message, secrets)); return false; }
       finally { queued--; }
     });
     return queue;

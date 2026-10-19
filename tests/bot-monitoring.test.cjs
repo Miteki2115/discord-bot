@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const { createBotMonitoring, sanitize } = require('../bot-monitoring.cjs');
+const { createDiscordRateLimitGate } = require('../discord-rate-limit.cjs');
 
 function fixture(options = {}) {
   let clock = 1791488660000;
@@ -71,6 +72,23 @@ test('Node deprecation warnings are logged separately without increasing task er
   await f.logger.captureError(new Error('DeprecationWarning appeared in a failed task'));
   assert.equal(f.logger.snapshot().errorCount, 1);
   assert.match(f.calls.at(-1).body.embeds[0].title, /BŁĄD ZADANIA/);
+});
+
+test('one global 429 stops queued webhook errors instead of amplifying the block', async () => {
+  let requests = 0;
+  const gate = createDiscordRateLimitGate({ now: () => 0 });
+  const f = fixture({ overrides: {
+    rateLimitGate: gate,
+    fetchImpl: async () => {
+      requests++;
+      return { status: 429, ok: false, headers: { get: () => null }, json: async () => ({ global: true, retry_after: 60 }) };
+    },
+  } });
+  await f.logger.boot;
+  await Promise.all(Array.from({ length: 5 }, (_, i) => f.logger.captureError(`failed ${i}`)));
+  await f.logger.updateStatus();
+  assert.equal(requests, 1);
+  assert.match(f.logger.snapshot().status, /HTTP 429/);
 });
 
 test('reconnect status reflects the shard state even when the client still reports ready', async () => {

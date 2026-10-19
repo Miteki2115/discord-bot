@@ -41,3 +41,20 @@ test('failed acknowledgement does not become a successful response', async () =>
   assert.equal(completion.isFinalized(), false);
   assert.equal(completion.hasPendingResponse(), false);
 });
+
+test('429 on defer prevents fallback and repeated response requests for the same interaction', async () => {
+  const f = fixture();
+  let requests = 0;
+  const failing = {
+    isRepliable: () => true,
+    async deferReply() { requests++; throw Object.assign(new Error('global limit'), { status: 429 }); },
+    async reply() { requests++; },
+  };
+  const completion = f.context.trackChatCommandCompletion(failing);
+  await assert.rejects(failing.deferReply(), /global limit/);
+  await f.context.finishUnansweredChatCommand(failing, completion, 'handler-finished');
+  await assert.rejects(failing.reply(), /HTTP 429/);
+  assert.equal(requests, 1);
+  assert.equal(completion.isFinalized(), false);
+  assert.equal(completion.hasFinalResponseAttempt(), true);
+});

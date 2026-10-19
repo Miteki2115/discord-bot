@@ -34,6 +34,8 @@ const path = require("path");
 const crypto = require("crypto");
 const DISCORD_API_BASE = process.env.DISCORD_API_BASE || "https://canary.discord.com/api";
 const ENABLE_HEAVY_STARTUP_SYNC = process.env.ENABLE_HEAVY_STARTUP_SYNC === "true";
+const { createDiscordRateLimitGate } = require("./discord-rate-limit.cjs");
+const discordRateLimit = createDiscordRateLimitGate();
 
 // Load local .env when running on a PC (Render ma własne env vars)
 try {
@@ -71,7 +73,8 @@ let lastGatewayEventDiagnostic = {
 app.get('/health', (req, res) => {
   const discordConnected = client.isReady();
   res.status(200).json({
-    status: discordConnected ? 'healthy' : 'degraded',
+    status: discordConnected && !discordRateLimit.snapshot().global_retry_after_ms ? 'healthy' : 'degraded',
+    discord_rate_limit: discordRateLimit.snapshot(),
     discord_connected: discordConnected,
     bot_id: client.user?.id || null,
     bot_tag: client.user?.tag || null,
@@ -129,6 +132,7 @@ const client = new Client({
 const { createBotMonitoring } = require("./bot-monitoring.cjs");
 const monitoring = createBotMonitoring({
   client,
+  rateLimitGate: discordRateLimit,
   events: Events,
   webhookUrl: process.env.UPTIME_WEBHOOK,
   monitorUrl: process.env.MONITOR_HTTP_URL || process.env.RENDER_EXTERNAL_URL,
@@ -158,6 +162,7 @@ const monitoring = createBotMonitoring({
 // discord.js wraz z jego kolejką i respektowaniem retry_after.
 const originalClientRestGet = client.rest.get.bind(client.rest);
 client.rest.get = async (route, options) => {
+  discordRateLimit.assertAllowed('bot-rest');
   if (route === Routes.gatewayBot()) {
     lastDiscordLoginDiagnostic = {
       stage: 'gateway_fallback',
@@ -187,6 +192,7 @@ function isInteractionResponseRoute(route) {
 }
 
 async function directInteractionRestRequest(method, route, options = {}) {
+  discordRateLimit.assertAllowed('interactions');
   const query = options.query ? `?${new URLSearchParams(options.query).toString()}` : "";
   const controller = new AbortController();
   const isInitialResponse = /^\/interactions\/\d+\/[^/]+\/callback$/.test(String(route || ""));
@@ -210,10 +216,12 @@ async function directInteractionRestRequest(method, route, options = {}) {
       }
     }
     if (!response.ok) {
+      const retryAfterMs = discordRateLimit.observe('interactions', response, data);
       const error = new Error(
         `Discord interaction HTTP ${response.status} via ${new URL(DISCORD_API_BASE).hostname}`,
       );
       error.status = response.status;
+      error.retryAfterMs = retryAfterMs;
       error.code = data?.code || response.status;
       error.responseBody = typeof data === "string" ? data.slice(0, 200) : data;
       throw error;
@@ -226,7 +234,8 @@ async function directInteractionRestRequest(method, route, options = {}) {
 
 for (const methodName of ["post", "patch", "delete"]) {
   const originalMethod = client.rest[methodName].bind(client.rest);
-  client.rest[methodName] = (route, options = {}) => {
+  client.rest[methodName] = async (route, options = {}) => {
+    discordRateLimit.assertAllowed('bot-rest');
     // Pliki wymagają multipart i pozostają w standardowym kliencie REST.
     if (isInteractionResponseRoute(route) && !options.files?.length) {
       return directInteractionRestRequest(methodName.toUpperCase(), route, options);
@@ -234,6 +243,20 @@ for (const methodName of ["post", "patch", "delete"]) {
     return originalMethod(route, options);
   };
 }
+const originalClientRestPut = client.rest.put.bind(client.rest);
+client.rest.put = async (route, options) => {
+  discordRateLimit.assertAllowed('bot-rest');
+  return originalClientRestPut(route, options);
+};
+function trackDiscordRestRateLimits(restClient) {
+  restClient.on('rateLimited', (data) => {
+    if (data.global) discordRateLimit.block('bot-rest', data.retryAfter, true);
+  });
+  restClient.on('response', (_request, response) => {
+    discordRateLimit.observe('bot-rest', response);
+  });
+}
+trackDiscordRestRateLimits(client.rest);
 
 client.rest.on("rateLimited", (info) => {
   console.warn("[DISCORD_REST] Rate limit:", {
@@ -6226,6 +6249,7 @@ const commands = [
 ].map(applyCommandVisibility);
 
 const rest = new REST({ version: "10", api: DISCORD_API_BASE }).setToken(process.env.BOT_TOKEN);
+trackDiscordRestRateLimits(rest);
 
 // Helper: human-readable ms
 function humanizeMs(ms) {
@@ -7360,6 +7384,7 @@ function trackChatCommandCompletion(interaction) {
   let finalized = Boolean(interaction.replied);
   let pendingResponses = 0;
   let finalResponseAttempted = false;
+  let responseRateLimited = false;
   const originalMethods = {};
   const responseMethods = [
     "deferReply",
@@ -7382,6 +7407,9 @@ function trackChatCommandCompletion(interaction) {
     const original = originalMethods[methodName];
     if (!original) continue;
     interaction[methodName] = async (...args) => {
+      if (responseRateLimited) {
+        throw Object.assign(new Error('Odpowiedź wstrzymana po HTTP 429.'), { code: 429, status: 429, localCooldown: true });
+      }
       setInteractionDiagnostic(interaction, `${methodName}-start`);
       const isDeferredAck = methodName === "deferReply" || methodName === "deferUpdate";
       if (!isDeferredAck) finalResponseAttempted = true;
@@ -7399,6 +7427,10 @@ function trackChatCommandCompletion(interaction) {
         setInteractionDiagnostic(interaction, `${methodName}-success`);
         return result;
       } catch (error) {
+        if (error?.status === 429 || error?.code === 429) {
+          responseRateLimited = true;
+          finalResponseAttempted = true;
+        }
         setInteractionDiagnostic(interaction, `${methodName}-error`, {
           error_code: error?.code || error?.status || error?.name || "unknown",
         });
@@ -7498,6 +7530,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await handleButtonInteraction(interaction);
     }
   } catch (error) {
+    if (error?.status === 429 || error?.code === 429) {
+      console.warn('[INTERACTION] HTTP 429: pomijam kolejne odpowiedzi i respektuję przerwę Discorda.');
+      return;
+    }
     if (error?.code === 10062 || error?.message?.includes("Unknown interaction")) {
       console.error("[INTERACTION] Interakcja wygasła przed odpowiedzią:", interaction.id, error?.message || error);
       return;
@@ -10908,6 +10944,7 @@ async function handleStatusBotaCommand(interaction) {
 
     await interaction.reply({ embeds: [embed] });
   } catch (err) {
+    if (err?.status === 429 || err?.code === 429) throw err;
     console.error("Błąd komendy /statusbota:", err);
     await interaction.reply({
       content: "> `❌` × **Wystąpił** błąd podczas pobierania statusu **bota**!",
