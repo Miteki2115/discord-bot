@@ -7094,6 +7094,11 @@ client.once(Events.ClientReady, async (c) => {
     await ticketCategoryManager.cleanup(guild).catch(error => console.error("[ticket-category] startup cleanup:", error));
   }
 
+  // Odśwież tylko istniejący panel free-kasa również przy lekkim starcie.
+  await updateFreeKasaInstructionInPlace().catch((error) =>
+    console.error("[free-kasa] Nie udało się zaktualizować istniejącego panelu:", error),
+  );
+
   if (!ENABLE_HEAVY_STARTUP_SYNC) {
     // Najpierw dostępność komend. Pełne skanowanie historii wiadomości i paneli
     // wykonywało setki GET-ów, wpadało w globalny rate limit i blokowało reply.
@@ -7203,10 +7208,6 @@ client.once(Events.ClientReady, async (c) => {
 
   await initializeOpinionCounters().catch((error) =>
     console.error("[opinie-counter] Błąd inicjalizacji licznika:", error),
-  );
-
-  await updateFreeKasaInstructionInPlace().catch((error) =>
-    console.error("[free-kasa] Nie udało się zaktualizować istniejącego panelu:", error),
   );
 
   // also apply defaults for all cached guilds (if names match)
