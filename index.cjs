@@ -3363,7 +3363,7 @@ function buildFreeKasaInstructionPayload(guildId = null) {
     "```",
     "💰 NEW SHOP × free kasa",
     "```",
-    "### `📌` × Ustaw w statusie `.gg/newshop` lub `discord.gg/newshop`",
+    "### `📌` × Ustaw w statusie `.gg/newshop`",
     "`⏰` × Masz **1** próbę co **12** godzin",
     "`📩` × Nagrodę odebrać będziesz mógł od **1** zaproszenia!",
     "",
@@ -3708,7 +3708,7 @@ function buildFreeKasaInstructionPayload(guildId = null) {
   container.addSeparatorComponents(new SeparatorBuilder().setDivider(true));
 
   const rawBody = [
-    "### `📌` × Ustaw w statusie `.gg/newshop` lub `discord.gg/newshop`",
+    "### `📌` × Ustaw w statusie `.gg/newshop`",
     "`⏰` × Masz **1** próbę co **12** godzin",
     "`📩` × Nagrodę odebrać będziesz mógł od **1** zaproszenia!",
     "",
@@ -3906,7 +3906,7 @@ async function handleFreeKasaCommand(interaction) {
 
     await interaction.reply({
       content:
-        "> `❌` × Aby **wylosować nagrodę**, ustaw status **`.gg/newshop`** lub **`discord.gg/newshop`**\n" +
+        "> `❌` × Aby **wylosować nagrodę**, ustaw status **`.gg/newshop`**\n" +
         "> `☁️` × Kliknij **profil** i szarą chmurkę obok nicku. Status musi być **aktywny**." +
           (statusGuideAttachment ? " Podgląd masz **na dole**." : ""),
       embeds: statusGuideEmbed ? [statusGuideEmbed] : undefined,
@@ -24145,6 +24145,7 @@ client.on(Events.MessageCreate, async (message) => {
   if (
     message.guild &&
     message.channel?.id === FREE_KASA_CHANNEL_ID &&
+    message.author.id !== message.guild.ownerId &&
     !message.interactionMetadata
   ) {
     await message.delete().catch(() => null);
