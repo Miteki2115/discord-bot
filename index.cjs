@@ -72,7 +72,8 @@ let lastGatewayEventDiagnostic = {
 
 app.get('/health', (req, res) => {
   const discordConnected = client.isReady();
-  res.status(200).json({
+  res.set('Cache-Control', 'no-store');
+  res.status(discordConnected ? 200 : 503).json({
     status: discordConnected && !discordRateLimit.snapshot().global_retry_after_ms ? 'healthy' : 'degraded',
     discord_rate_limit: discordRateLimit.snapshot(),
     discord_connected: discordConnected,
